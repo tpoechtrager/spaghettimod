@@ -45,8 +45,8 @@ typedef fd_set ENetSocketSet;
 
 typedef struct _ENetCmsgPktinfo
 {
-    struct cmsghdr cmsg;
     struct in_pktinfo pktinfo;
+    struct cmsghdr cmsg;
 } ENetCmsgPktinfo;
 
 static inline void

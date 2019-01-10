@@ -553,14 +553,14 @@ void flushmasterinput()
     else disconnectmaster();
 }
 
-static ENetAddress pongaddr, localpongaddr;
+static ENetAddress pongaddr;
 
 void sendserverinforeply(ucharbuf &p)
 {
     ENetBuffer buf;
     buf.data = p.buf;
     buf.dataLength = p.length();
-    enet_socket_send_local(pongsock, &pongaddr, &buf, 1, &localpongaddr);
+    enet_socket_send(pongsock, &pongaddr, &buf, 1);
 }
 
 #define MAXPINGDATA 32
@@ -594,7 +594,7 @@ void checkserversockets()        // reply all server info requests
 
         buf.data = pong;
         buf.dataLength = sizeof(pong);
-        int len = enet_socket_receive_local(sock, &pongaddr, &buf, 1, &localpongaddr);
+        int len = enet_socket_receive(sock, &pongaddr, &buf, 1);
         ucharbuf req(pong, len), p(pong, sizeof(pong));
         p.len += len;
         const bool lan = i;
@@ -1119,7 +1119,7 @@ bool setuplistenserver(bool dedicated)
         else
         {
             enet_socket_set_option(pongsock, ENET_SOCKOPT_NONBLOCK, 1);
-            enet_socket_set_option(pongsock, ENET_SOCKOPT_PKTINFO, 1);
+            //enet_socket_set_option(pongsock, ENET_SOCKOPT_PKTINFO, 1);
         }
     }
     if(!spaghetti::simplehook(spaghetti::hotstring::laninfocreate, address)){
@@ -1377,7 +1377,6 @@ void bindengine(){
             .addData("outgoingUnsequencedGroup", &ENetPeer::outgoingUnsequencedGroup)
             .addProperty("unsequencedWindow", &eunseqwnd::getter<ENetPeer, &ENetPeer::unsequencedWindow>)
             .addData("totalWaitingData", &ENetPeer::totalWaitingData)
-            .addData("localAddress", &ENetPeer::localAddress)
             .addData("timedOut", &ENetPeer::timedOut)
         .endClass()
         .beginClass<ENetHost>("ENetHost")
@@ -1447,9 +1446,7 @@ void bindengine(){
         .addFunction("enet_socket_accept", enet_socket_accept)
         .addFunction("enet_socket_connect", enet_socket_connect)
         .addFunction("enet_socket_send", enet_socket_send)
-        .addFunction("enet_socket_send_local", enet_socket_send_local)
         .addFunction("enet_socket_receive", enet_socket_receive)
-        .addFunction("enet_socket_receive_local", enet_socket_receive_local)
         .addFunction("enet_socket_wait", enet_socket_wait)
         .addFunction("enet_socket_set_option", enet_socket_set_option)
         .addFunction("enet_socket_get_option", +[](ENetSocket socket, ENetSocketOption option){
@@ -1769,7 +1766,6 @@ void bindengine(){
     addEnum(ENET_SOCKOPT_REUSEADDR);
     addEnum(ENET_SOCKOPT_RCVTIMEO);
     addEnum(ENET_SOCKOPT_SNDTIMEO);
-    addEnum(ENET_SOCKOPT_PKTINFO);
     addEnum(ENET_SOCKOPT_ERROR);
     addEnum(ENET_SOCKOPT_NODELAY);
     addEnum(ENET_SOCKET_SHUTDOWN_READ);
@@ -1878,7 +1874,6 @@ void bindengine(){
 #define addPtr(n) lua_pushstring(L, #n); push(L, &n); lua_rawset(L, -3)
     addPtr(clients);
     addPtr(pongaddr);
-    addPtr(localpongaddr);
     addPtr(serveraddress);
 #undef addPtr
     #undef addEnum

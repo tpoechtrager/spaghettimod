@@ -295,16 +295,6 @@ enet_socket_send (ENetSocket socket,
                   const ENetBuffer * buffers,
                   size_t bufferCount)
 {
-    return enet_socket_send_local (socket, address, buffers, bufferCount, NULL);
-}
-
-int
-enet_socket_send_local (ENetSocket socket,
-                        const ENetAddress * address,
-                        const ENetBuffer * buffers,
-                        size_t bufferCount,
-                        ENetAddress * srcAddress)
-{
     struct sockaddr_in sin;
     DWORD sentLength;
 
@@ -341,16 +331,6 @@ enet_socket_receive (ENetSocket socket,
                      ENetAddress * address,
                      ENetBuffer * buffers,
                      size_t bufferCount)
-{
-    return enet_socket_receive_local (socket, address, buffers, bufferCount, NULL);
-}
-
-int
-enet_socket_receive_local (ENetSocket socket,
-                           ENetAddress * address,
-                           ENetBuffer * buffers,
-                           size_t bufferCount,
-                           ENetAddress * dstAddress)
 {
     INT sinLength = sizeof (struct sockaddr_in);
     DWORD flags = 0,
