@@ -1,3 +1,12 @@
+# Notice
+
+This is a forked repo of the [spaghettimod](https://github.com/pisto/spaghettimod) servermod by pisto. It features some tweaks and additional modules taken from my script collection at https://github.com/benzomatic/spaghettimod-extra. 
+
+Among them:
+
+- limited rugby range mod with particle effects
+- no multihoming
+
 # What is this?
 
 **spaghettimod** is a Cube 2: Sauerbraten server mod with Lua scripting. It is completely different from Hopmod (the other Lua server mod around). It is for modders who already have a good knowledge of the Sauerbraten server codebase, and just want tools to easily extend that with Lua. It is *not* for clan leaders who just want a personalized (read, custom message color or little more) server.
