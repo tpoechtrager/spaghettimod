@@ -152,6 +152,9 @@ end)
 local ents = require"std.ents", require"std.maploaded"
 require"std.pm"
 require"std.getip"
+require"std.autobalance"
+require"std.pastanames"
+require"std.specban"
 
 spaghetti.addhook("entsloaded", function()
   if server.smapname ~= "thetowers" then return end

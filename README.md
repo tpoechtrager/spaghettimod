@@ -5,6 +5,9 @@ This is a forked repo of the [spaghettimod](https://github.com/pisto/spaghettimo
 Among them:
 
 - limited rugby range mod with particle effects
+- auto-balancing
+- spec-ban functionality
+- renaming of unnameds
 - no multihoming
 
 # What is this?
