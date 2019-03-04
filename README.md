@@ -1,9 +1,10 @@
 # Notice
 
-This is a forked repo of the [spaghettimod](https://github.com/pisto/spaghettimod) servermod by pisto. It features some tweaks and additional modules taken from my script collection at https://github.com/benzomatic/spaghettimod-extra. 
+This is a forked repo of the [spaghettimod](https://github.com/pisto/spaghettimod) servermod by pisto. It features some tweaks and additional modules taken from my [script collection](https://github.com/benzomatic/spaghettimod-extra). 
 
 Among them:
 
+- a discord bot ([Setup](https://github.com/benzomatic/spaghettimod-extra#discord-bot))
 - limited rugby range mod with particle effects
 - auto-balancing
 - spec-ban functionality

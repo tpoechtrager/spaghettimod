@@ -156,6 +156,13 @@ require"std.autobalance"
 require"std.pastanames"
 require"std.specban"
 
+require"std.discordrelay".new({
+  relayHost = "127.0.0.1", 
+  relayPort = 57575, 
+  discordChannelID = nil,
+  scoreboardChannelID = nil
+})
+
 spaghetti.addhook("entsloaded", function()
   if server.smapname ~= "thetowers" then return end
   for i, _, ment in ents.enum(server.JUMPPAD) do if ment.attr4 == 40 then
@@ -227,26 +234,6 @@ map.nv(function(type) spaghetti.addhook(type, warnspam) end,
   server.N_TEXT, server.N_SAYTEAM, server.N_SWITCHNAME, server.N_MAPVOTE, server.N_SPECTATOR, server.N_MASTERMODE, server.N_AUTHTRY, server.N_AUTHKICK, server.N_CLIENTPING
 )
 
---#cheater command
-local home = os.getenv("HOME") or "."
-local function ircnotify(args)
-  --I use ii for the bots
-  local cheaterchan, pisto = io.open(home .. "/irc/cheaterchan/in", "w"), io.open(home .. "/irc/ii/pipes/pisto/in", "w")
-  for ip, requests in pairs(args) do
-    local str = "#cheater" .. (requests.ai and " \x02through bots\x02" or "") .. " on pisto.horse 1024"
-    if requests.total > 1 then str = str .. " (" .. requests.total .. " reports)" end
-    str = str .. ": "
-    local names
-    for cheater in pairs(requests.cheaters) do str, names = str .. (names and ", \x02" or "\x02") .. engine.encodeutf8(cheater.name) .. " (" .. cheater.clientnum .. ")\x02", true end
-    if not names then str = str .. "<disconnected>" end
-    if cheaterchan then cheaterchan:write(str .. ", auth holders please help!\n") end
-    if pisto then pisto:write(str .. " -- " .. tostring(require"utils.ip".ip(ip)) .. "\n") end
-  end
-  if cheaterchan then cheaterchan:write('\n') cheaterchan:close() end
-  if pisto then pisto:write('\n') pisto:close() end
-end
-
-abuse.cheatercmd(ircnotify, 20000, 1/30000, 3)
 local sound = require"std.sound"
 spaghetti.addhook(server.N_TEXT, function(info)
   if info.skip then return end

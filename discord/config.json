@@ -1,0 +1,15 @@
+{
+  "bot": {
+    "discordToken": "my-discord-token",
+    "commandPrefix": ".",
+    "alerts": true,
+    "alertChannelID": "alert-channel-id",
+    "enableThumbnails": true,
+    "enableScoreboard": true,
+    "alwaysScoreboard": false
+  },
+  "udp": {
+    "relayHost": "127.0.0.1",
+    "relayPort": "57575"
+  }
+}

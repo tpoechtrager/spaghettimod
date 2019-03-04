@@ -1,0 +1,15 @@
+{
+  "name": "spaghetti-discord",
+  "version": "1.0.0",
+  "description": "A NodeJS app to communicate between a LUA gameserver and discord",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ."
+  },
+  "author": "benzomatic",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "*"
+  }
+}
