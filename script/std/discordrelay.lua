@@ -182,7 +182,7 @@ local function prefix(ci, n)
 end
 
 local function playerStats(ci, n, includename, includeflags)
-  if not ci then return nil end
+  if not ci then return "" end
   local name, cn = ci.name, tostring(ci.clientnum)
   local spaces = n and string.rep(" ", (18 - (#name + #cn))) or ""
   local namestr = includename and prefix(ci, n) .. name .. " (" .. cn .. "): " .. spaces or ""
