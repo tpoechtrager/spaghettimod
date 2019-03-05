@@ -33,7 +33,7 @@ local unixprint = L"_ and os.date('!%c', _ and math.modf(_) or nil) .. ' UTC' or
 local rep = { ["%_"] = "\\_", ["%*"] = "\\*", ["`"] = "\\`", ["~"] = "\\~", ["|"] = "\\|" }
 local function c(s)
   if not s then return nil end
-  s = string.gsub(engine.encodeutf8(s) , "\\", "")
+  s = string.gsub(s, "\\", "")
   for k, v in pairs(rep) do s = string.gsub(s, k, v) end
   return s
 end
@@ -139,10 +139,9 @@ end)
 ]]
 
 -- useful functions
-local function prettyname(ci, encode)
+local function prettyname(ci)
   if not ci then return "" end
-  local name = encode and engine.encodeutf8(ci.name) or ci.name
-  return name .. " (" .. ci.clientnum .. ")"
+  return ci.name .. " (" .. ci.clientnum .. ")"
 end
 
 local function prettygeoip(geoip, short)
@@ -612,7 +611,7 @@ local function discordnotify(args)
     str = str .. "\n"
     local multi
     for reporter in pairs(requests.reporters) do 
-      reporters = reporters .. (more and ", " or "") .. prettyname(reporter, true)
+      reporters = reporters .. (more and ", " or "") .. prettyname(reporter)
       multi, more = true, true			
     end
     if not multi then reporters = reporters .. "<disconnected>" end
