@@ -8,25 +8,20 @@ local L = require"utils.lambda"
 
 local maxdiff = 1  -- the maximum player unbalance that is tolerated, everything beyond this will be autobalanced
 local enable_balance, enable_hardbalance = true, true
-local checkteam_interval = 60 * 1000
-local softbalance_duration = 30 * 1000
+local checkteam_interval = 40 * 1000
+local softbalance_duration = 20 * 1000
 
 local candidates = {}  -- players to be balanced
 
 local function teams()
-  local info = {}
-  local good_n, evil_n = 0, 0
-  for _ in iterators.inteam("good") do good_n = good_n + 1 end
-  for _ in iterators.inteam("evil") do evil_n = evil_n + 1 end
+  local info, good_n, evil_n = {}, 0, 0
+  for p in iterators.inteam("good") do if (p.state.state ~= engine.CS_SPECTATOR) then good_n = good_n + 1 end end
+  for p in iterators.inteam("evil") do if (p.state.state ~= engine.CS_SPECTATOR) then evil_n = evil_n + 1 end end
   info.good = { a = "evil", n = good_n }
   info.evil = { a = "good", n = evil_n }
-
   info.diff = math.abs(good_n - evil_n)
-  local biggerteam = good_n > evil_n and "good" or evil_n > good_n and "evil" or nil
-  local smallerteam = good_n < evil_n and "good" or evil_n < good_n and "evil" or nil
-  info.bigger = biggerteam
-  info.smaller = smallerteam
-
+  info.bigger = good_n > evil_n and "good" or evil_n > good_n and "evil" or nil
+  info.smaller = good_n < evil_n and "good" or evil_n < good_n and "evil" or nil
   return info
 end
 
@@ -43,13 +38,13 @@ end
 
 local function determine_worst_players(team, num)
   local n, t, worst = 0, {}, {}
-  for ci in iterators.inteam(team) do 
-      local points = ci.state.frags + ci.state.flags * 100
-      t[ci.clientnum] = points 
-  end
-  while n < num do
-    if not next(t) then break end
-    local worstcn, worstpoints = nil, 10000
+  for ci in iterators.inteam(team) do if (ci.state.state ~= engine.CS_SPECTATOR) then
+    local points = ci.state.frags + ci.state.flags * 100
+    t[ci.clientnum] = points 
+  end end
+  if not next(t) then return worst end
+  local worstcn, worstpoints = nil, 10000
+  repeat
     for cn, points in pairs(t) do 
       if points < worstpoints then 
         worstcn, worstpoints = cn, points 
@@ -57,27 +52,22 @@ local function determine_worst_players(team, num)
     end
     if worstcn == nil then break end
     local player = engine.getclientinfo(worstcn)
-    if (player.state.state ~= engine.CS_SPECTATOR) then
-      worst[worstcn] = teams()[player.team].a
-      t[worstcn] = nil
-      n = n + 1
-    end
-  end
-
+    worst[worstcn] = teams()[player.team].a
+    t[worstcn] = nil
+    n = n + 1
+  until n >= num or not next(t)
   return worst
 end
 
 local function updatecandidates()
   if not enable_balance then return end
   local teaminfo = teams()  
-
   if candidates then 
     for k, v in pairs(candidates) do 
       candidates[k] = nil
     end
     candidates = nil
   end
-
   local candidate_num = math.floor(teaminfo.diff / 2)
   candidates = determine_worst_players(teaminfo.bigger, candidate_num)
 end
@@ -89,31 +79,24 @@ local function tryswitchteam(player, toteam)
   local oldgood, oldevil = teaminfo.good.n, teaminfo.evil.n
   setteam.set(player, toteam, -1, true)
   teaminfo = teams()
-  engine.writelog("autobalance:  teams: good/evil: " .. oldgood .. "/" .. oldevil .. " => " .. teaminfo.good.n .. "/" .. teaminfo.evil.n .. " ["  .. player.name .. " (" .. player.clientnum .. ")]")
+  engine.writelog("autobalance: teams: good/evil: " .. oldgood .. "/" .. oldevil .. " => " .. teaminfo.good.n .. "/" .. teaminfo.evil.n .. " ["  .. player.name .. " (" .. player.clientnum .. ")]")
   playermsg("\f6Info\f7: You were switched into the other team to balance out the player count.", player)
 end
 
 -- hard balance: switch players into the other team while they are alive - the players will remain alive. 
 -- only applies when soft balance is not fast enough, only switches bottom players and never switches flagholders.
 local function hardbalance()
-  local teaminfo = teams()
   if not unbalanced() then return end
-
   updatecandidates()
-
   for cn, team in pairs(candidates) do
     local p = engine.getclientinfo(cn)
     if not has_flag(p) then tryswitchteam(p, team) end
   end 
-
-  updatecandidates()
 end
 
 local diedhook
 local function balanceteams()
-  local teaminfo = teams()
   if not unbalanced() then return end
-
   updatecandidates()
   
   -- soft balance: switch players that are currently dead
@@ -144,15 +127,6 @@ local function balanceteams()
     if unbalanced() then if enable_hardbalance then hardbalance() end end  -- if still unbalanced, apply hard balance
   end)
 end
-
--- update candidates on some events
-local function update(events)
-  for _, e in ipairs(events) do
-    spaghetti.addhook(e, function() updatecandidates() end)
-  end
-end
-
-update({server.N_SWITCHTEAM, "specstate", "connected", "clientdisconnect", "scoreflag"})
 
 -- check balance every checkteam_interval seconds
 local checker
