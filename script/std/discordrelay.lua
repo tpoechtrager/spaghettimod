@@ -55,7 +55,7 @@ end
     UDP
 ]]
 
-local function formatUDP(tbl) return js.encode(jsonpersist.deepencodeutf8(tbl), {indent = false}) end
+local function formatUDP(tbl) return js.encode(jsonpersist.deepencodeutf8(tbl), { indent = false }) end
 
 local function sendUDP(msg)
   local tbl = {}
@@ -117,6 +117,10 @@ end
 local function new(info)
   if not info.relayHost or not info.relayPort or not info.discordChannelID or info.discordChannelID == "my-discord-channel-id" then 
     engine.writelog("[Discord] Incomplete configuration. Check new().")
+    return
+  end
+  if info.scoreboardChannelID and info.discordChannelID == info.scoreboardChannelID then 
+    engine.writelog("[Discord] Error: Main channel and scoreboard channel must not be the same, not starting.")
     return
   end
   module.config.host, module.config.port = info.relayHost, info.relayPort
@@ -397,9 +401,10 @@ addcommand("stats", function(info)
   if not cn or not engine.getclientinfo(cn) then return cmderror(info, "Player not found.") end
   local ci = engine.getclientinfo(cn)
   local location = ci.extra.geoip and prettygeoip(ci.extra.geoip) or "Unknown"
+  local country = ci.extra.geoip and prettygeoip(ci.extra.geoip, true) or "Unknown"
   local contime = prettytime(ci.extra.contime)
   local stats = playerStats(ci, nil, false, server.m_ctf or server.m_hold)  
-  local res = { event = "cmdstats", name = ci.name, cn = ci.clientnum, location = c(location), contime = contime, stats = stats }
+  local res = { event = "cmdstats", name = ci.name, cn = ci.clientnum, location = c(location), country = c(country), contime = contime, stats = stats }
   sendUDP(res) 
 end, "<cn>", "See the stats of player <cn>.")
 
@@ -409,8 +414,9 @@ addcommand("getip", function(info)
   if not cn or not engine.getclientinfo(cn) then return cmderror(info, "Player not found.") end
   local ci = engine.getclientinfo(cn)
   local location = ci.extra.geoip and prettygeoip(ci.extra.geoip) or "Unknown"
+  local country = ci.extra.geoip and prettygeoip(ci.extra.geoip, true) or "Unknown"
   local contime = prettytime(ci.extra.contime)
-  local res = { event = "cmdgetip", name = ci.name, cn = ci.clientnum, location = c(location), contime = contime, ip = tostring(ip.ip(ci)) }
+  local res = { event = "cmdgetip", name = ci.name, cn = ci.clientnum, location = c(location), country = c(country), contime = contime, ip = tostring(ip.ip(ci)) }
   sendUDP(res) 
 end, "<cn>", "Display IP of player <cn>.")
 
@@ -489,14 +495,18 @@ end, "<cn>", "Unmute a player.")
 local timespec = { d = { m = 60*60*24, n = "days" }, h = { m = 60*60, n = "hours" }, m = { m = 60, n = "minutes" } }
 timespec.D, timespec.H, timespec.M = timespec.d, timespec.h, timespec.m
 local banlists = {["kick"] = true, ["openmaster"] = true, ["teamkill"] = true}
-local function kickban(info)
-  local force, who, name, time, mult, msg = info.args:match("^(!?)([%d%./]+)%s*([^ %d]*)%s*(%d*)([DdHhMm]?)%s*(.-)%s*$")
+local function kickban(info, pban)
+  local force, who, name, time, mult, msg
+  if pban then force, who, name, msg = info.args:match("^(!?)([%d%./]+)%s*([^%s]*)%s*(.-)%s*$")
+  else force, who, name, time, mult, msg = info.args:match("^(!?)([%d%./]+)%s*([^ %d]*)%s*(%d*)([DdHhMm]?)%s*(.-)%s*$") end
   local cn, _ip = tonumber(who), ip.ip(who or "")
   force, list, msg = force == "!", name == "" and "kick" or name, msg ~= "" and msg or nil
-  if (not cn and not _ip) or (not _ip and force) or not time or (time ~= "" and not timespec[mult]) then return cmderror(info, "Bad format.") end
-  if time == "" then time, msg = 4*60*60, mult ~= "" and msg and mult .. " " .. msg or msg
-  elseif time == '0' then return cmderror(info, "Cannot ban for no time.")
-  else time = timespec[mult].m * time end
+  if (not cn and not _ip) or (not _ip and force) or (not pban and (not time or (time ~= "" and not timespec[mult]))) then return cmderror(info, "Bad format.") end
+  if not pban then 
+    if time == "" then time, msg = 4*60*60, mult ~= "" and msg and mult .. " " .. msg or msg
+    elseif time == '0' then return cmderror(info, "Cannot ban for no time.")
+    else time = timespec[mult].m * time end
+  else time = nil end
   if not banlists[list] then return cmderror(info, "Ban list '" .. list .. "' not found.") end
   _ip = _ip or ip.ip(ciip(cn))
   if cn and _ip.ip == 0 then return cmderror(info, "Player not found.") end
@@ -530,6 +540,12 @@ addcommand(
   kickban, 
   "<cn/[!]range> [<list=kick>] <time> [<reason>]", 
   "Ban an IP(range)/a player <cn>. Time format: #d|#h|#m\nPrepending '!' will coalesce all present containing ranges."
+)
+addcommand(
+  {"permban", "pban"}, 
+  function(info) return kickban(info, true) end, 
+  "<cn/[!]range> [<list=kick>] [<reason>]", 
+  "Permanently ban an IP(range)/a player <cn>.\nPrepending '!' will coalesce all present containing ranges."
 )
 
 addcommand("unban", function(info)
@@ -600,10 +616,10 @@ local function discordnotify(args)
   local str, reporters, num, more = "", "", 0, false
   local con = module.config.connected
   if not con then return end
-  for _ip, requests in pairs(args) do
+  for ip, requests in pairs(args) do
     num = num + 1
     local names
-    str = str .. (num > 1 and "==\n" or "\n") .. "IP: " .. tostring(ip.ip(_ip))
+    str = str .. (num > 1 and "==\n" or "\n") .. "IP: " .. tostring(ip.ip(ip))
     for cheater in pairs(requests.cheaters) do 
       str, names = str .. "\n" .. playerStats(cheater, nil, true, server.m_ctf or server.m_hold), true 
     end

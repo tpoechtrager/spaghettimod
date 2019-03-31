@@ -5,6 +5,7 @@
     "alerts": true,
     "alertChannelID": "alert-channel-id",
     "enableThumbnails": true,
+    "enableGeoipflags": true,
     "enableScoreboard": true,
     "alwaysScoreboard": false
   },

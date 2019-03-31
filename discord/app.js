@@ -12,7 +12,7 @@ const server = dgram.createSocket('udp4'),
 
 const { bot, udp } = require('./config.json');
 
-const { discordToken, commandPrefix: prefix, alerts, alertChannelID, enableThumbnails, enableScoreboard, alwaysScoreboard } = bot,
+const { discordToken, commandPrefix: prefix, alerts, alertChannelID, enableThumbnails, enableGeoipflags, enableScoreboard, alwaysScoreboard} = bot,
       { relayHost, relayPort } = udp;
 
 
@@ -35,6 +35,11 @@ function addspaces(n) { // force a minimum width on embeds
   let str = '';
   for (let i = 0; i < n; i++) str += '\u0020';
   return str;
+}
+
+function fill(s) {
+  if (!s || (s == '')) return;
+  return s.replace(/\u0020/g, '\u005F');
 }
 
 
@@ -155,7 +160,8 @@ server.on('message', (msg, rinfo) => {
 
   let cmsg = '',  
       color = 0x989898;
-  let author = { name: '', url: '' };
+  let geoipflag = '';
+  let author = { name: '', url: '', icon_url: '' };
   let title = '', 
       description = '',
       map = '';
@@ -238,6 +244,7 @@ server.on('message', (msg, rinfo) => {
 
     case 'cmdstats':
       author.name = `STATS ${addspaces(100)}\u200b`;
+      geoipflag = fill(args.country);
       description = `**Name:** ${args.name} (${args.cn})\n`;
       description += `**Location**: ${args.location}\n`;
       description += `**Playtime**: ${args.contime}\n\n`;
@@ -247,6 +254,7 @@ server.on('message', (msg, rinfo) => {
 
     case 'cmdgetip':
       author.name = 'IP';
+      geoipflag = fill(args.country);
       description = `**Name:** ${args.name} (${args.cn})\n`;
       description += `**Location**: ${args.location}\n`;
       description += `**Playtime**: ${args.contime}\n\n`;
@@ -272,6 +280,7 @@ server.on('message', (msg, rinfo) => {
 
     case 'connected':
       author.name = 'CONNECT';
+      geoipflag = fill(args.country);
       description = `${args.name} (${args.clientnum}) connected from ${args.country}`;
       color = 0x6485ff;
       break;
@@ -372,18 +381,29 @@ server.on('message', (msg, rinfo) => {
   })
 
   let all = embed;
-  let file;
-  let filen = map + '.jpg';
-  if (enableThumbnails && map && (map != '')) {
-    if (!fs.existsSync('./mapshots/' + filen)) {
-      filen = 'cube.png';
-      file = new Discord.Attachment('./mapshots/' + filen);
-      thumbnail.url = 'attachment://' + filen;
-      all = {files: [file], embed: embed};
+  let files = [];
+
+  if (enableGeoipflags && (geoipflag != '')) { 
+    if (!fs.existsSync(`./flags/${geoipflag}.png`)) {
+      embed.author.icon_url = 'attachment://Unknown.png';
+      files.push(new Discord.Attachment('./flags/Unknown.png'));
+      all = { files: files, embed: embed };
     } else {
-      file = new Discord.Attachment('./mapshots/' + filen);
-      thumbnail.url = 'attachment://' + filen;
-      all = {files: [file], embed: embed};
+      embed.author.icon_url = `attachment://${geoipflag}.png`;
+      files.push(new Discord.Attachment(`./flags/${geoipflag}.png`));
+      all = { files: files, embed: embed };
+    }
+  }
+
+  if (enableThumbnails && map && (map != '')) {
+    if (!fs.existsSync(`./mapshots/${map}.jpg`)) {
+      embed.thumbnail.url = 'attachment://cube.png';
+      files.push(new Discord.Attachment('./mapshots/cube.png'));
+      all = { files: files, embed: embed };
+    } else {
+      embed.thumbnail.url = `attachment://${map}.jpg`;
+      files.push(new Discord.Attachment(`./mapshots/${map}.jpg`));
+      all = { files: files, embed: embed };
     }
   }
   let newgamerefresh = isNewgame;
@@ -421,7 +441,7 @@ function getNick(user, guild) {
 
 client.on('ready', () => log('[Discord] Successfully connected to discord!'));
 
-client.on('error', (e) => out(e));
+client.on('error', (e) => out(e.message));
 
 client.on('message', (message) => {
   if(message.channel.type == 'text' && channels[message.channel.id]) {  // only take commands from active channel
