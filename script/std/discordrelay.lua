@@ -616,10 +616,10 @@ local function discordnotify(args)
   local str, reporters, num, more = "", "", 0, false
   local con = module.config.connected
   if not con then return end
-  for ip, requests in pairs(args) do
+  for _ip, requests in pairs(args) do
     num = num + 1
     local names
-    str = str .. (num > 1 and "==\n" or "\n") .. "IP: " .. tostring(ip.ip(ip))
+    str = str .. (num > 1 and "==\n" or "\n") .. "IP: " .. tostring(ip.ip(_ip))
     for cheater in pairs(requests.cheaters) do 
       str, names = str .. "\n" .. playerStats(cheater, nil, true, server.m_ctf or server.m_hold), true 
     end
