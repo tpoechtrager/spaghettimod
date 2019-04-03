@@ -10,9 +10,10 @@ const fs = require('fs'),
 const server = dgram.createSocket('udp4'),
       client = new Discord.Client();
 
-const { bot, udp } = require('./config.json');
+const { bot, udp } = require('./config.json'),
+      countries = require('./countries.json');
 
-const { discordToken, commandPrefix: prefix, alerts, alertChannelID, enableThumbnails, enableGeoipflags, enableScoreboard, alwaysScoreboard} = bot,
+const { discordToken, commandPrefix: prefix, alerts, alertChannelID, useEmbeds, enableThumbnails, enableScoreboard, alwaysScoreboard} = bot,
       { relayHost, relayPort } = udp;
 
 
@@ -35,11 +36,6 @@ function addspaces(n) { // force a minimum width on embeds
   let str = '';
   for (let i = 0; i < n; i++) str += '\u0020';
   return str;
-}
-
-function fill(s) {
-  if (!s || (s == '')) return;
-  return s.replace(/\u0020/g, '\u005F');
 }
 
 
@@ -87,7 +83,7 @@ function purge(channelID, logpurge) {
     if (!channel) return reject('Purge Error: Channel not found.');
     if (!canPurge(channel))
       return reject(`Purge Error: I need Read Message History and Manage Masseges permission in #${channel.name}. I need those to clean up the channel.`);
-    channel.fetchMessages({ limit: 100 })
+    channel.fetchMessages({ limit: 10 })
     .then((collected) => collected.filter(msg => msg.author.id === client.user.id))
     .then((botMessages) => channel.bulkDelete(botMessages))
     .then((botMessages) => {
@@ -158,9 +154,9 @@ server.on('message', (msg, rinfo) => {
     }
   }
 
+  let flag = ((args.country && (args.country != 'Unknown') && countries[args.country]) ? ':flag_' + countries[args.country] + ':' : '[ ? ]');
   let cmsg = '',  
       color = 0x989898;
-  let geoipflag = '';
   let author = { name: '', url: '', icon_url: '' };
   let title = '', 
       description = '',
@@ -191,7 +187,6 @@ server.on('message', (msg, rinfo) => {
         args: {}
       };
       sendUDP(tbl, rinfo.address, rinfo.port);
-      client.user.setActivity('Cube 2: Sauerbraten');
       log(`[Discord] Registered server '${args.server}' ['${request.tag}'] @${rinfo.address}:${rinfo.port}`);
       break;
 
@@ -240,25 +235,40 @@ server.on('message', (msg, rinfo) => {
 
     case 'cmdsay':
       cmsg = `${args.name}: [REMOTE] ${args.txt}`;
+      if (!useEmbeds) cmsg = `:speech_balloon: **${args.name}**: [REMOTE] ${args.txt}`;
       break;
 
     case 'cmdstats':
       author.name = `STATS ${addspaces(100)}\u200b`;
-      geoipflag = fill(args.country);
       description = `**Name:** ${args.name} (${args.cn})\n`;
-      description += `**Location**: ${args.location}\n`;
+      description += `**Location**: ${args.location} ${flag}\n`;
       description += `**Playtime**: ${args.contime}\n\n`;
       description += '```diff\nStats: ' + args.stats + '\n```';
+      if (!useEmbeds) {
+        cmsg = `:information_source: STATS for ${args.name} (${args.cn}) (${flag} ${args.country}):\n`;
+        cmsg += '```diff\n'
+        cmsg += `Name: ${args.name} (${args.cn})\n`;
+        cmsg += `Location: ${args.location}\n`;
+        cmsg += `Playtime: ${args.contime}\n\n`;
+        cmsg += 'Stats: ' + args.stats + '\n```';
+      }
       color = 0xffa700;
       break;
 
     case 'cmdgetip':
       author.name = 'IP';
-      geoipflag = fill(args.country);
       description = `**Name:** ${args.name} (${args.cn})\n`;
-      description += `**Location**: ${args.location}\n`;
+      description += `**Location**: ${args.location} ${flag}\n`;
       description += `**Playtime**: ${args.contime}\n\n`;
       description += `**IP**: ${args.ip}\n\n`;
+      if (!useEmbeds) {
+        cmsg = `:information_source: IP for ${args.name} (${args.cn}) (${flag} ${args.country}):\n`;
+        cmsg += '```diff\n'
+        cmsg += `Name: ${args.name} (${args.cn})\n`;
+        cmsg += `Location: ${args.location}\n`;
+        cmsg += `Playtime: ${args.contime}\n\n`;
+        cmsg += 'IP: ' + args.ip + '\n```';
+      }
       color = 0xffa700;
       break;
 
@@ -266,45 +276,52 @@ server.on('message', (msg, rinfo) => {
 
     case 'chat':
       cmsg = `${args.name} (${args.clientnum}): ${args.txt}`;
+      if (!useEmbeds) cmsg = `:speech_balloon: **${args.name} (${args.clientnum})**: ${args.txt}`;
       break;
 
     case 'info':
       description = args.txt;
+      if (!useEmbeds) cmsg = `:information_source: INFO: ${args.txt}`;
       break;
 
     case 'rename':
       author.name = 'RENAME';
       description = `${args.oldname} (${args.clientnum}) is now known as ${args.newname}`;
+      if (!useEmbeds) cmsg = `:arrows_counterclockwise: RENAME: **${args.oldname} (${args.clientnum})** is now known as ${args.newname}`;
       color = 0x3a56bd;
       break;
 
     case 'connected':
       author.name = 'CONNECT';
-      geoipflag = fill(args.country);
-      description = `${args.name} (${args.clientnum}) connected from ${args.country}`;
+      description = `${args.name} (${args.clientnum}) connected from ${flag} ${args.country}`;
+      if (!useEmbeds) cmsg = `:arrow_right: CONNECT: **${args.name} (${args.clientnum})** connected from ${flag} ${args.country}`;
       color = 0x6485ff;
       break;
 
     case 'disconnected':
       author.name = 'DISCONNECT';
       description = `${args.name} (${args.clientnum}) disconnected after ${args.contime}${args.reason}`;
+      if (!useEmbeds) cmsg = `:arrow_left: DISCONNECT: **${args.name} (${args.clientnum})** disconnected after ${args.contime}${args.reason}`;
       color = (args.iskick ? 0xff0000 : 0x0036f9);
       break;
 
     case 'master':
       author.name = 'MASTER';
       description = `${args.name} (${args.clientnum}) ${args.action}`;
+      if (!useEmbeds) cmsg = `:asterisk: MASTER: **${args.name} (${args.clientnum})** ${args.action}`;
       break;
 
     case 'kick':
       author.name = 'KICKBAN';
       description = args.str;
+      if (!useEmbeds) cmsg = `:x: KICKBAN: **${args.str}**`;
       color = 0xff0000;
       break;
 
     case 'newgame':
       author.name = 'NEW GAME';
       description = `Mode/map: **${args.modemap}**\nPlayers: **${args.players}**\n\n`;
+      if (!useEmbeds) cmsg = ':new: NEW GAME: ' + description.replace(/\n/g, '\u0020');
       scoreboard = '```diff\nListing ' + args.players + ' (high acc/tks are highlighted):\n\n' + args.str + '\n```';
       map = args.nmap;
       isStatus = true;
@@ -316,8 +333,11 @@ server.on('message', (msg, rinfo) => {
       break;
 
     case 'status':
+      // only display every second status update in the light version
       author.name = `SERVER STATUS ${args.progress}`;
       description = `Mode/map: **${args.modemap}**\nPlayers: **${args.players}**\n\n`;
+      if (!useEmbeds && (Math.abs(args.n % 2) == 0)) 
+        cmsg = ':information_source: SERVER STATUS (' + (args.n / 2) + '/5): ' + description.replace(/\n/g, '\u0020');
       description += '_Updates every minute._';
       scoreboard = '```diff\nListing ' + args.players + ' (high acc/tks are highlighted):\n\n' + args.str + '\n```';
       map = args.nmap;
@@ -330,6 +350,7 @@ server.on('message', (msg, rinfo) => {
     case 'intermission':
       author.name = 'INTERMISSION';
       description = `Mode/map: **${args.modemap}**\nPlayers: **${args.players}**\n\n`;
+      if (!useEmbeds) cmsg = ':stop_button: INTERMISSION: ' + description.replace(/\n/g, '\u0020');
       scoreboard = '```diff\nListing ' + args.players + ' (high acc/tks are highlighted):\n\n' + args.str + '\n```';
       map = args.nmap;
       isStatus = true;
@@ -357,17 +378,35 @@ server.on('message', (msg, rinfo) => {
         if (achannel) {
           if (missingAccess(achannel))
             return out(`I need ${missingAccess(achannel)} permissions in #${achannel.name}!`, 'Permissions');
-          achannel.send('@here', alert).catch((e) => out(e, 'Send'));
+          if (useEmbeds) { 
+            achannel.send('@here', alert).catch((e) => out(e, 'Send'));
+          } else {
+            achannel.send('@here' + alertmsg).catch((e) => out(e, 'Send'));
+          }
         } else {
-          channel.send('@here', alert).catch((e) => out(e, 'Send'));
+          if (useEmbeds) { 
+            channel.send('@here', alert).catch((e) => out(e, 'Send'));
+          } else {
+            channel.send('@here' + alertmsg).catch((e) => out(e, 'Send'));
+          }
         }
       } else {
-        channel.send('@here', alert).catch((e) => out(e, 'Send'));
+        if (useEmbeds) { 
+          channel.send('@here', alert).catch((e) => out(e, 'Send'));
+        } else {
+          channel.send('@here' + alertmsg).catch((e) => out(e, 'Send'));
+        }
       }
       break;
   }
 
   if ((description == '') && (cmsg == '')) return;
+
+  // Simple chat message
+  if (cmsg && cmsg != '') {
+    channel.send(cmsg).catch((e) => out(e, 'Send'));
+    if (!useEmbeds && !isStatus) return;
+  }
 
   let embed = new Discord.RichEmbed({
     color: color,
@@ -383,18 +422,6 @@ server.on('message', (msg, rinfo) => {
   let all = embed;
   let files = [];
 
-  if (enableGeoipflags && (geoipflag != '')) { 
-    if (!fs.existsSync(`./flags/${geoipflag}.png`)) {
-      embed.author.icon_url = 'attachment://Unknown.png';
-      files.push(new Discord.Attachment('./flags/Unknown.png'));
-      all = { files: files, embed: embed };
-    } else {
-      embed.author.icon_url = `attachment://${geoipflag}.png`;
-      files.push(new Discord.Attachment(`./flags/${geoipflag}.png`));
-      all = { files: files, embed: embed };
-    }
-  }
-
   if (enableThumbnails && map && (map != '')) {
     if (!fs.existsSync(`./mapshots/${map}.jpg`)) {
       embed.thumbnail.url = 'attachment://cube.png';
@@ -409,13 +436,11 @@ server.on('message', (msg, rinfo) => {
   let newgamerefresh = isNewgame;
   if (!enableThumbnails) newgamerefresh = false;
 
-  // Simple chat message
-  if (cmsg && cmsg != '') 
-    return channel.send(cmsg).catch((e) => out(e, 'Send'));
-
   // If enabled, update server status in status channel
   if (enableScoreboard && isStatus && hasScoreboardChannel) 
-    return pushStatus(channel, isImportant, scoreboardChannelID, all, scoreboard, newgamerefresh);
+    return pushStatus(channel, (isImportant && useEmbeds), scoreboardChannelID, all, scoreboard, newgamerefresh);
+
+  if ((description == '') || (!useEmbeds && ((event != 'cmdbanlist') && (event != 'cmdhelp') && (event != 'cmdstatus')))) return;
 
   // Normal embed for the main channel, append an intermission scoreboard if given
   channel.send(all)

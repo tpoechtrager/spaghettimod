@@ -124,7 +124,7 @@ local function new(info)
     return
   end
   module.config.host, module.config.port = info.relayHost, info.relayPort
-  module.config.channel, module.config.scoreboardChannel = info.discordChannelID, info.scoreboardChannelID
+  module.config.channel, module.config.scoreboardChannel = tostring(info.discordChannelID), info.scoreboardChannelID and tostring(info.scoreboardChannelID) or nil
   return createUDP(info.relayHost, info.relayPort, cs.serverport, info.discordChannelID, info.scoreboardChannelID)
 end
 
@@ -149,7 +149,7 @@ local function prettyname(ci)
 end
 
 local function prettygeoip(geoip, short)
-  local format, country, region, city = {}, geoip.country and (geoip.country.names and geoip.country.names.en) or geoip.country.en, geoip.subdivisions and geoip.subdivisions[1].names.en, geoip.city and geoip.city.names.en
+  local format, country, region, city = {}, geoip.country and ((geoip.country.names and geoip.country.names.en) or geoip.country.en), geoip.subdivisions and geoip.subdivisions[1].names.en, geoip.city and geoip.city.names.en
   if short then return country and engine.decodeutf8(country) or "Unknown" end
   if city then table.insert(format, engine.decodeutf8(city)) end
   if region and not (city and region:find(city, 1, true)) then table.insert(format, engine.decodeutf8(region)) end
@@ -301,7 +301,7 @@ spaghetti.addhook("changemap", function(info)
     n = n + 1
     if (n > 9) or (server.interm > 0) then return end
     local modemap, players, str = gameStatus()
-    local res = { event = "status", progress = "(" .. tonumber(n) .. "/10)", modemap = modemap, map = c(server.smapname), nmap = server.smapname, players = players, str = trim(str) }
+    local res = { event = "status", n = tonumber(n), progress = "(" .. tonumber(n) .. "/10)", modemap = modemap, map = c(server.smapname), nmap = server.smapname, players = players, str = trim(str) }
     sendUDP(res)
   end, true)
 end)

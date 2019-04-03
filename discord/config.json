@@ -4,8 +4,8 @@
     "commandPrefix": ".",
     "alerts": true,
     "alertChannelID": "alert-channel-id",
+    "useEmbeds": true,
     "enableThumbnails": true,
-    "enableGeoipflags": true,
     "enableScoreboard": true,
     "alwaysScoreboard": false
   },
