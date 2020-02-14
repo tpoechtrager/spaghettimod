@@ -13,8 +13,8 @@ const server = dgram.createSocket('udp4'),
 const { bot, udp } = require('./config.json'),
       countries = require('./countries.json');
 
-const { discordToken, commandPrefix: prefix, alerts, alertChannelID, useEmbeds, enableThumbnails, enableScoreboard, alwaysScoreboard} = bot,
-      { relayHost, relayPort } = udp;
+let { discordToken, commandPrefix: prefix, alerts, alertChannelID, useEmbeds, enableThumbnails, enableScoreboard, alwaysScoreboard } = bot,
+    { relayHost, relayPort } = udp;
 
 
 /***
@@ -43,13 +43,23 @@ function addspaces(n) { // force a minimum width on embeds
     Create the UDP instance that will listen to gameserver messages to be relayed to discord.
 ***/
 
-let servers = [],
-    channels = [],
-    statusIDs = [];
+let servers = {},
+    channels = {},
+    statusIDs = {},
+    voice = {};
 
 function updateServer(tag, channel, rinfo) {
-  servers[tag] = { channel: channel, address: rinfo.address, port: rinfo.port };
-  channels[channel] = {address: rinfo.address, port: rinfo.port};
+  if (!servers[tag]) {
+    servers[tag] = { channel: channel, address: rinfo.address, port: rinfo.port };
+  } else {
+    servers[tag].channel = channel, servers[tag].address = rinfo.address, servers[tag].port = rinfo.port;
+  }
+  
+  if (!channels[channel]) {
+    channels[channel] = {address: rinfo.address, port: rinfo.port};
+  } else { 
+    channels[channel].address = rinfo.address, channels[channel].port = rinfo.port;
+  }
 }
 
 function sendUDP(tbl, address, port) {
@@ -58,23 +68,25 @@ function sendUDP(tbl, address, port) {
   return server.send(buf, 0, buf.length, port, address, (e) => out(e, 'UDP'));
 }
 
-function canPurge(channel) {
-  return channel.permissionsFor(client.user).has('READ_MESSAGE_HISTORY', 'MANAGE_MESSAGES');
-}
+let perms = [ 'SEND_MESSAGES', 'VIEW_CHANNEL', 'EMBED_LINKS', 'READ_MESSAGE_HISTORY', 'MANAGE_MESSAGES' ],
+    vperms = [ 'VIEW_CHANNEL', 'MOVE_MEMBERS' ];
 
-let perms = [ 
-  'SEND_MESSAGES',
-  'VIEW_CHANNEL',
-  'EMBED_LINKS',
-  'READ_MESSAGE_HISTORY',
-  'MANAGE_MESSAGES'
-]
 function missingAccess(channel) {
   if (alerts && !perms.includes('MENTION_EVERYONE')) perms.push('MENTION_EVERYONE');
   if (enableThumbnails && !perms.includes('ATTACH_FILES')) perms.push('ATTACH_FILES');
   let needed = [];
   perms.forEach((flag) => { if(!channel.permissionsFor(client.user).has(flag)) needed.push(flag) });
   return (needed.length ? needed.join(' and ') : false);
+}
+
+function missingVoiceAccess(channel) {
+  let vneeded = [];
+  vperms.forEach((flag) => { if(!channel.permissionsFor(client.user).has(flag)) vneeded.push(flag) });
+  return (vneeded.length ? vneeded.join(' and ') : false);
+}
+
+function canPurge(channel) {
+  return channel.permissionsFor(client.user).has('READ_MESSAGE_HISTORY', 'MANAGE_MESSAGES');
 }
 
 function purge(channelID, logpurge) {
@@ -95,13 +107,21 @@ function purge(channelID, logpurge) {
   })
 }
 
-function pushStatus(channel, important, scoreboardChannelID, embed, scoreboard, forcepurge) {
+function pushStatus(tag, channel, important, scoreboardChannelID, embed, scoreboard, forcepurge) {
   let scoreboardChannel = client.channels.find(channel => channel.id === scoreboardChannelID);
   if (!scoreboardChannel) return;
-
+  
+  forcepurge = (forcepurge || (servers[tag].usingEmbeds !== useEmbeds));
+  let hdr = (embed.embed.author.name + ': ' + embed.embed.description).replace(/\n/g, '\u0020');
   if (!forcepurge && statusIDs[scoreboardChannelID] && statusIDs[scoreboardChannelID].embed && statusIDs[scoreboardChannelID].scoreboard) {
     scoreboardChannel.fetchMessage(statusIDs[scoreboardChannelID].embed)
-    .then((oldembed) => oldembed.edit(embed))
+    .then((oldembed) => {
+      if (useEmbeds) {
+        return oldembed.edit(embed).catch((e) => out(e, 'Scoreboard Edit'));
+      } else {
+        return oldembed.edit(hdr, { embed: {}, files: [] }).catch((e) => out(e, 'Scoreboard Edit'));
+      }
+    })
     .then(() => scoreboardChannel.fetchMessage(statusIDs[scoreboardChannelID].scoreboard))
     .then((oldscoreboard) => oldscoreboard.edit(scoreboard))
     .catch((e) => out(e, 'Scoreboard Edit'));
@@ -109,15 +129,89 @@ function pushStatus(channel, important, scoreboardChannelID, embed, scoreboard, 
    return;
   }
 
+  servers[tag].usingEmbeds = useEmbeds;
   let embedid = '';
+  if (statusIDs[scoreboardChannelID]) {
+    delete statusIDs[scoreboardChannelID].embed;
+    delete statusIDs[scoreboardChannelID].scoreboard;
+  }
   purge(scoreboardChannelID)
-  .then(() => scoreboardChannel.send(embed).catch((e) => out(e)))
+  .then(() => {
+    if (useEmbeds) {
+      return scoreboardChannel.send(embed).catch((e) => out(e));
+    } else {
+      return scoreboardChannel.send(hdr).catch((e) => out(e));
+    }
+  })
   .then((embedmsg) => embedid = embedmsg.id)
   .then(() => scoreboardChannel.send(scoreboard))
   .then((sbmsg) => statusIDs[scoreboardChannelID] = { embed: embedid, scoreboard: sbmsg.id })
   .catch((e) => out(e, 'Scoreboard Send'));
   if (important) channel.send(embed).catch((e) => out(e, 'Scoreboard Send'));
   return;
+}
+
+function synchronizeVoice(userid, vchannelid) {
+  return new Promise((resolve, reject) => {
+    if (!vchannelid) return reject('Voice channel not found.');
+    let vchannel = client.channels.find(channel => channel.id === vchannelid)
+    if (!vchannel) return reject('Voice channel not found.');
+    if (missingVoiceAccess(vchannel)) return reject(`Lacking ${missingVoiceAccess(vchannel)} permissions in ${vchannel.name}`);
+    let guild = vchannel.guild;
+    if (!guild) return reject('Guild not found.');
+    if (!client.users.get(userid)) return reject(`Discord user for '${userid}' not found!`);
+    guild.fetchMember(userid)
+    .then((member) => {
+      if(!member.voiceChannelID || (member.voiceChannelID == vchannel.id)) return resolve();
+      let chans = [];
+      for (const [tag] of Object.entries(servers)) {
+        for (const [chan, info] of Object.entries(voice[tag].channels)) {
+          if (chan != "names") chans.push(info.id);
+        }
+      }
+      if (chans.includes(member.voiceChannelID)) {
+        member.setVoiceChannel(vchannelid)
+        .then(() => resolve())
+        .catch((e) => reject(e));
+      }
+    })
+    .catch((e) => reject(e));
+  });
+}
+
+function levenshtein(a, b) { // rosettacode.org
+  var t = [], u, i, j, m = a.length, n = b.length;
+  if (!m) { return n; }
+  if (!n) { return m; }
+  for (j = 0; j <= n; j++) { t[j] = j; }
+  for (i = 1; i <= m; i++) {
+    for (u = [i], j = 1; j <= n; j++) {
+      u[j] = a[i - 1] === b[j - 1] ? t[j - 1] : Math.min(t[j - 1], t[j], u[j - 1]) + 1;
+    } t = u;
+  } return u[n];
+}
+
+function collectUsers(guild, voiceUsers, list, comp) {
+  return new Promise((resolve, reject) => {
+    let tmp = voiceUsers;
+    if (!voiceUsers.size) return resolve();
+    voiceUsers.forEach((_, id) => {
+      guild.fetchMember(id)
+      .then((user) => {
+        let exists = false;
+        for (const [tag, info] of Object.entries(voice)) {
+          for (const [id, obj] of Object.entries(voice[tag].ids)) {
+            if (obj.discordid && obj.discordid == user.id) exists = true;
+          }
+        }
+        if (!exists && ((levenshtein(comp, user.displayName) / comp.length) <= 9/20)) 
+          list[id] = { name: user.displayName, channelid: user.voiceChannelID }; 
+        delete tmp[id];
+        if (!tmp.length) return resolve();
+      })
+      .catch((e) => reject(e));
+    });
+  });
 }
 
 server.on('error', (e) => {
@@ -136,6 +230,8 @@ server.on('message', (msg, rinfo) => {
   let args = request.msg;
   let event = request.msg.event;
 
+  let oldrinfo;
+  if (servers[request.tag]) oldrinfo = servers[request.tag].port;
   updateServer(request.tag, request.channel, rinfo);
 
   const channel = client.channels.find(channel => channel.id === servers[request.tag].channel);
@@ -143,7 +239,7 @@ server.on('message', (msg, rinfo) => {
   if (missingAccess(channel))
     return out(`I need ${missingAccess(channel)} permissions in #${channel.name}!`, 'Permissions');
 
-  var hasScoreboardChannel = false;
+  let hasScoreboardChannel = false;
   const scoreboardChannelID = request.scoreboardChannel;
   const scoreboardChannel = client.channels.find(channel => channel.id === scoreboardChannelID);
   if (scoreboardChannel && (scoreboardChannel != '')) {
@@ -154,26 +250,64 @@ server.on('message', (msg, rinfo) => {
     }
   }
 
-  let flag = ((args.country && (args.country != 'Unknown') && countries[args.country]) ? ':flag_' + countries[args.country] + ':' : '[ ? ]');
-  let cmsg = '',  
-      color = 0x989898;
-  let author = { name: '', url: '', icon_url: '' };
-  let title = '', 
-      description = '',
-      map = '';
-  let thumbnail = { url: '' };
-  let fields = [];
-  let timestamp = '';
-  let footer = { text: ''};
-  let scoreboard = '';
-  let isCommand = false, 
-      isStatus = false,
-      isImportant = false,
-      isNewgame = false;
+  let hasVoice = false;
+  const voiceChannels = request.voice;
+  if (!voice[request.tag]) voice[request.tag] = {};
+  if (voiceChannels && (!voice[request.tag].channels || (oldrinfo != rinfo.port))) { 
+    voice[request.tag].channels = {};
+    voice[request.tag].requests = {};
+    voice[request.tag].ids = {};
+    let lastguildid,
+        msg = "",
+        verror = false;
+    for (const [team, channelid] of Object.entries(voiceChannels)) {
+      let tmpchan = client.channels.find(channel => channel.id === channelid);
+      if (!tmpchan) msg = "Channel not found";  
+      if (tmpchan) {
+        for (const [tag] of Object.entries(servers)) { 
+          if (voice[tag].channels[team] && (voice[tag].channels[team].id == tmpchan.id))
+            msg = `The channel already exists in '${tag}'`;
+        }
+        if (!lastguildid) lastguildid = tmpchan.guild.id;
+        if ((msg == "") && tmpchan.guild.id != lastguildid) msg = "The channel is in a different guild";
+        if ((msg == "") && (tmpchan.type !== 'voice')) msg = "The channel is not a voice channel";
+        if ((msg == "") && missingVoiceAccess(tmpchan)) msg = `Lacking ${missingVoiceAccess(tmpchan)} permissions in ${tmpchan.name}`;
+      }
+      if (msg != "") {
+        log(`[Voice Error] Could not add voice channel for team '${team}' @${request.tag}: ${msg}!`);
+        msg = "";
+        verror = true;
+      } else if (!verror){
+        hasVoice = true;
+        if (!voice[request.tag].channels[team]) voice[request.tag].channels[team] = {};
+        if (!voice[request.tag].channels.names) voice[request.tag].channels.names = [];
+        voice[request.tag].channels[team].id = tmpchan.id;
+        voice[request.tag].channels[team].guildid = tmpchan.id;
+        voice[request.tag].channels.names.push(`:loud_sound:**${tmpchan.name}**`);
+        log(`[Voice] Added a voice channel: Team '${team}' @${request.tag} <-> Channel '${tmpchan.name}' @${tmpchan.guild.name}`);
+      }
+    }
+    if ((msg != "") || verror) {
+      hasVoice = false;
+      log(`[Voice] Voice functionality for '${request.tag}' disabled completely.`);
+    }
+  } else if (voiceChannels && voice[request.tag].channels) hasVoice = true;
+
+  let flag = ((args.country && (args.country != 'Unknown') && countries[args.country]) ? ':flag_' + countries[args.country] + ':' : '[ ? ]'),
+      cmsg = '', color = 0x989898,
+      author = { name: '', url: '', icon_url: '' },
+      title = '', description = '', thumbnail = { url: '' },
+      fields = [], timestamp = '', footer = { text: ''},
+      scoreboard = '', map = '',
+      isCommand = false, isStatus = false, isImportant = false, isNewgame = false;
    
   switch (event) {
 
     case 'register':
+      if (servers[request.tag]) {
+        servers[request.tag].name = args.server;
+        servers[request.tag].usingEmbeds = useEmbeds;
+      }
       cmsg = `---\nI'm here now! This channel is linked to \'${args.server}'.\n`;
       cmsg += `Type **${prefix}help** for this server's command list.`;
       if (enableScoreboard && hasScoreboardChannel) {
@@ -187,6 +321,15 @@ server.on('message', (msg, rinfo) => {
         args: {}
       };
       sendUDP(tbl, rinfo.address, rinfo.port);
+      if (hasVoice) {
+        let vtbl = {
+          voice: true,
+          cmd: '#voiceregsuccess',
+          guildname: channel.guild.name,
+          botname: getNick(client.user, channel.guild)
+        };
+        sendUDP(vtbl, rinfo.address, rinfo.port);
+      }
       log(`[Discord] Registered server '${args.server}' ['${request.tag}'] @${rinfo.address}:${rinfo.port}`);
       break;
 
@@ -198,11 +341,17 @@ server.on('message', (msg, rinfo) => {
 
     case 'cmdhelp':
       author.name = 'COMMANDS';
-      description = `List of commands for '${args.server}'\nUsage: ${prefix}<command> <args> [<opt. args>]\n\u200b`;
+      description = `**List of bot commands:**\n\n **.embeds:**\nToggle whether or not embeds are shown.\n\n\u200b`;
+      description += `**List of commands for '${args.server}':**\n_Usage: ${prefix}<command> <args> [<opt. args>]_\n\u200b`;
       color = 0x6485ff;
+      if (!useEmbeds) cmsg += description + '\n';
       for (let cmd in args.list) {
         if (args.list.hasOwnProperty(cmd)) {
-          fields.push({ name: prefix + args.list[cmd].name + ' ' + args.list[cmd].cmdargs, value: args.list[cmd].help });
+          if (!useEmbeds) {
+            cmsg += `**${prefix}${args.list[cmd].name} ${args.list[cmd].cmdargs}**\n${args.list[cmd].help}\n`;
+          } else {
+            fields.push({ name: prefix + args.list[cmd].name + ' ' + args.list[cmd].cmdargs, value: args.list[cmd].help });
+          }
         }
       }
       break;
@@ -212,14 +361,25 @@ server.on('message', (msg, rinfo) => {
       let choice = (args.all ? `by banlist` : `in banlist '${args.blist.name}'`)
       description = `Enumerating bans ${choice}:\nExpire :: Range :: Reason`;
       color = 0x6485ff;
+      if (!useEmbeds) cmsg += '**' + description + '**\n';
       if (args.all) {
+        if (!useEmbeds) cmsg += '```';
         for (let banlist in args.lists) {
           if (args.lists.hasOwnProperty(banlist)) {
-            fields.push({ name: args.lists[banlist].name, value: '```\n' + args.lists[banlist].list + '\n```' });
+            if (!useEmbeds) {
+              cmsg += `${args.lists[banlist].name}:\n${args.lists[banlist].list}\n\n`;
+            } else {
+              fields.push({ name: args.lists[banlist].name, value: '```\n' + args.lists[banlist].list + '\n```' });
+            }
           }
         }
+        if (!useEmbeds) cmsg += '```';
       } else {
-        description += '```\n' + args.blist.list + '\n```'
+        if (!useEmbeds) {
+          cmsg += '```\n' + args.blist.list + '\n```';
+        } else {
+          description += '```\n' + args.blist.list + '\n```'
+        }
       }
       break;
 
@@ -227,6 +387,10 @@ server.on('message', (msg, rinfo) => {
       author.name = 'SERVER STATUS';
       description = `Mode/map: **${args.modemap}**\nPlayers: **${args.players}**\n\n`;
       scoreboard = '```diff\nServing ' + args.players + ' (high frags/acc/tks are highlighted):\n\n' + args.str + '\n```';
+      if (!useEmbeds) {
+        cmsg += ':information_source: SERVER STATUS: ' + description.replace(/\n/g, '\u0020');
+        cmsg += scoreboard;
+      }
       map = args.nmap;
       isCommand = true;
       color = 0x2aa198;
@@ -276,7 +440,7 @@ server.on('message', (msg, rinfo) => {
 
     case 'chat':
       cmsg = `${args.name} (${args.clientnum}): ${args.txt}`;
-      if (!useEmbeds) cmsg = `:speech_balloon: **${args.name} (${args.clientnum})**: ${args.txt}`;
+      if (!useEmbeds) cmsg = `:speaking_head: **${args.name} (${args.clientnum})**: ${args.txt}`;
       break;
 
     case 'info':
@@ -301,14 +465,17 @@ server.on('message', (msg, rinfo) => {
     case 'disconnected':
       author.name = 'DISCONNECT';
       description = `${args.name} (${args.clientnum}) disconnected after ${args.contime}${args.reason}`;
-      if (!useEmbeds) cmsg = `:arrow_left: DISCONNECT: **${args.name} (${args.clientnum})** disconnected after ${args.contime}${args.reason}`;
+      if (!useEmbeds) {
+        let prefix = (args.iskick ? ':put_litter_in_its_place:' : ':arrow_left:')
+        cmsg = `${prefix} DISCONNECT: **${args.name} (${args.clientnum})** disconnected after ${args.contime}${args.reason}`;
+      }
       color = (args.iskick ? 0xff0000 : 0x0036f9);
       break;
 
     case 'master':
       author.name = 'MASTER';
       description = `${args.name} (${args.clientnum}) ${args.action}`;
-      if (!useEmbeds) cmsg = `:asterisk: MASTER: **${args.name} (${args.clientnum})** ${args.action}`;
+      if (!useEmbeds) cmsg = `:passport_control: MASTER: **${args.name} (${args.clientnum})** ${args.action}`;
       break;
 
     case 'kick':
@@ -319,7 +486,8 @@ server.on('message', (msg, rinfo) => {
       break;
 
     case 'newgame':
-      author.name = 'NEW GAME';
+      if (!useEmbeds) author.name = ':new: ';
+      author.name += 'NEW GAME';
       description = `Mode/map: **${args.modemap}**\nPlayers: **${args.players}**\n\n`;
       if (!useEmbeds) cmsg = ':new: NEW GAME: ' + description.replace(/\n/g, '\u0020');
       scoreboard = '```diff\nListing ' + args.players + ' (high acc/tks are highlighted):\n\n' + args.str + '\n```';
@@ -334,11 +502,12 @@ server.on('message', (msg, rinfo) => {
 
     case 'status':
       // only display every second status update in the light version
-      author.name = `SERVER STATUS ${args.progress}`;
+      if (!useEmbeds) author.name = ':information_source: ';
+      author.name += `SERVER STATUS ${args.progress}`;
       description = `Mode/map: **${args.modemap}**\nPlayers: **${args.players}**\n\n`;
       if (!useEmbeds && (Math.abs(args.n % 2) == 0)) 
         cmsg = ':information_source: SERVER STATUS (' + (args.n / 2) + '/5): ' + description.replace(/\n/g, '\u0020');
-      description += '_Updates every minute._';
+      if (useEmbeds) description += '_Updates every minute._';
       scoreboard = '```diff\nListing ' + args.players + ' (high acc/tks are highlighted):\n\n' + args.str + '\n```';
       map = args.nmap;
       isStatus = true;
@@ -348,7 +517,8 @@ server.on('message', (msg, rinfo) => {
       break;
 
     case 'intermission':
-      author.name = 'INTERMISSION';
+      if (!useEmbeds) author.name = ':stop_button: ';
+      author.name += 'INTERMISSION';
       description = `Mode/map: **${args.modemap}**\nPlayers: **${args.players}**\n\n`;
       if (!useEmbeds) cmsg = ':stop_button: INTERMISSION: ' + description.replace(/\n/g, '\u0020');
       scoreboard = '```diff\nListing ' + args.players + ' (high acc/tks are highlighted):\n\n' + args.str + '\n```';
@@ -398,6 +568,154 @@ server.on('message', (msg, rinfo) => {
         }
       }
       break;
+
+    case 'voiceevent':
+      if (!hasVoice) return;
+      let action = args.action;
+
+      switch(action) {
+
+        case 'getsimilar':
+          voice[request.tag].ids[args.id] = { tag: request.tag, cn: args.cn, team: args.team, sname: args.sname, guild: channel.guild.name };
+          let voiceUsers = channel.guild.members.filter(member => !!member.voiceChannelID),
+              list = {};
+          let fail = false;
+          let _tbl = {
+            voice: true,
+            cmd: '#similarfail',
+            guildname: channel.guild.name,
+            botname: getNick(client.user, channel.guild),
+            cn: args.cn
+          };
+          collectUsers(channel.guild, voiceUsers, list, args.name)
+          .then(() => {  
+            if (!Object.keys(list).length) {
+              _tbl.reason = "no matching name was found in any voice channel", _tbl.rec = "join voice";
+              return sendUDP(_tbl, rinfo.address, rinfo.port);
+            }
+            let chans = [];
+            for (const [chan, info] of Object.entries(voice[request.tag].channels)) {
+              if (chan != "names") chans.push(info.id);
+            }
+            let userid = Object.keys(list)[0];
+            let username = list[userid].name,
+                channelid = list[userid].channelid;
+            if (!chans.includes(channelid)) _tbl.reason = "you are not in an active voice channel", _tbl.rec = "join active channels", fail = true; 
+            if (Object.keys(list).length > 1) _tbl.reason = "multiple users were found", _tbl.rec = "rename", fail = true;
+            if (!voice[request.tag].channels[args.team]) _tbl.reason = "you are not in a team linked to voice", _tbl.rec = "join active teams", fail = true;
+            if (fail) 
+              return sendUDP(_tbl, rinfo.address, rinfo.port);
+            client.fetchUser(userid)
+            .then((user) => {
+              user.send(`Hey ${username}, you are now linked to auto-voice: ${args.sname} <=> ${channel.guild}. \n\n**Tip:** you can bind the following command to your F2-key to easily log in the next time you connect, no matter your nickname:` + '\n```/bind "F2" [servcmd voice ' + args.id + ']```\nHave fun! :smile:').catch((e) => out(e, 'Send'));
+              log(`[Voice] Linked ${username} to ${args.cn}, team ${args.team} (${args.sname}).`);
+              voice[request.tag].ids[args.id].discordid = userid;
+              let tbl = {
+                voice: true,
+                cmd: "#vlinksuccess",
+                direct: true,
+                did: userid,
+                dname: user.tag,
+                id: args.id,
+                cn: args.cn,
+                team: args.team,
+              };
+              sendUDP(tbl, servers[request.tag].address, servers[request.tag].port);
+              let oldteam = voice[request.tag].ids[args.id].team;
+              voice[request.tag].ids[args.id].team = args.team;
+              if (voice[request.tag].channels[args.team]) {
+                synchronizeVoice(userid, voice[request.tag].channels[args.team].id)
+                .catch((e) => { 
+                  voice[request.tag].ids[args.id].team = oldteam;
+                  out(e, 'Voice Move');
+                });
+              }
+
+            })
+            .catch((e) => out(e, 'User Fetch'))
+          })
+          .catch((e) => out(e, 'User Collect'))
+
+          break;
+        
+        case 'request':
+          for (const [id, obj] of Object.entries(voice[request.tag].ids)) {
+            if (obj.cn == args.cn && !id.discordid) {
+              delete voice[request.tag].ids.id;
+              log(`[Voice] Update code: cn ${args.cn}.`);
+            }
+          }
+          voice[request.tag].ids[args.id] = { tag: request.tag, cn: args.cn, team: args.team, sname: args.sname, guild: channel.guild.name };
+          voice[request.tag].requests[args.id] = { tag: request.tag, sname: args.sname, guild: channel.guild.name };
+          log(`[Voice] Link request from '${request.tag}': cn ${args.cn} -> id ${args.id}.`);
+          break;
+
+        case 'delrequests':
+          for (const [stag, info] of Object.entries(voice)) {
+            for (const [id, obj] of Object.entries(voice[stag].requests)) {
+              delete voice[request.tag].requests[id];
+            }
+          }
+          break;
+
+        case 'login':
+          if (!client.users.get(args.did)) 
+            return log(`[Voice] Login Fail for cn ${args.cn} @${args.sname}: Discord user for '${args.did}' not found!`);
+          client.fetchUser(args.did)
+          .then((duser) => {
+            if (duser) {
+              voice[request.tag].ids[args.id] = { discordid: duser.id, tag: request.tag, cn: args.cn, team: args.team, sname: args.sname, guild: channel.guild.name };
+              let tbl = {
+                voice: true,
+                cmd: "#vlinksuccess",
+                id: args.id,
+                did: duser.id,
+                dname: duser.tag,
+                cn: args.cn,
+                team: args.team
+              };
+              sendUDP(tbl, rinfo.address, rinfo.port);
+              if (voice[request.tag].channels[args.team]) {
+                synchronizeVoice(duser.id, voice[request.tag].channels[args.team].id)
+                .catch((e) => out(e, 'Voice Move'));
+              }
+              log(`[Voice] Login: ${duser.username} || Server: ${args.sname} cn: ${args.cn}`);
+            } 
+          })
+          .catch((e) => out(e));
+
+          break;
+
+        case 'disconnect':
+          for (const [id, obj] of Object.entries(voice[request.tag].ids)) {
+            if (obj.cn == args.cn) {
+              delete voice[request.tag].ids[id];
+              log(`[Voice] Removed cn ${args.cn} from id cache.`);
+            }
+          }
+          break;
+
+        case 'update':
+          if (!args.voiceinfo) return;
+          for (const [cn, team] of Object.entries(args.voiceinfo)) {
+            for (const [id, obj] of Object.entries(voice[request.tag].ids)) {
+              if ((obj.cn == cn) && voice[request.tag].ids[id].discordid) {
+                let uoldteam = voice[request.tag].ids[id].team;
+                voice[request.tag].ids[id].team = team;
+                if (voice[request.tag].channels[team]) {
+                  synchronizeVoice(obj.discordid, voice[request.tag].channels[team].id)
+                  .catch((e) => { 
+                    voice[request.tag].ids[id].team = uoldteam;
+                    out(e, 'Voice Move 2');
+                  });
+                }
+              }
+            }
+          }
+          break;
+      }
+      
+      break;
   }
 
   if ((description == '') && (cmsg == '')) return;
@@ -405,7 +723,7 @@ server.on('message', (msg, rinfo) => {
   // Simple chat message
   if (cmsg && cmsg != '') {
     channel.send(cmsg).catch((e) => out(e, 'Send'));
-    if (!useEmbeds && !isStatus) return;
+    if (!isStatus) return;
   }
 
   let embed = new Discord.RichEmbed({
@@ -421,6 +739,7 @@ server.on('message', (msg, rinfo) => {
 
   let all = embed;
   let files = [];
+  all = { files: files, embed: embed };
 
   if (enableThumbnails && map && (map != '')) {
     if (!fs.existsSync(`./mapshots/${map}.jpg`)) {
@@ -434,17 +753,17 @@ server.on('message', (msg, rinfo) => {
     }
   }
   let newgamerefresh = isNewgame;
-  if (!enableThumbnails) newgamerefresh = false;
+  if (!enableThumbnails || !useEmbeds) newgamerefresh = false;
 
   // If enabled, update server status in status channel
   if (enableScoreboard && isStatus && hasScoreboardChannel) 
-    return pushStatus(channel, (isImportant && useEmbeds), scoreboardChannelID, all, scoreboard, newgamerefresh);
+    return pushStatus(request.tag, channel, (isImportant && useEmbeds), scoreboardChannelID, all, scoreboard, newgamerefresh);
 
   if ((description == '') || (!useEmbeds && ((event != 'cmdbanlist') && (event != 'cmdhelp') && (event != 'cmdstatus')))) return;
 
   // Normal embed for the main channel, append an intermission scoreboard if given
   channel.send(all)
-  .then(() => { 
+  .then(() => {
     if (scoreboard && !isNewgame && (isCommand || isImportant || (!isImportant && alwaysScoreboard))) 
       return channel.send(scoreboard);
   })
@@ -468,24 +787,110 @@ client.on('ready', () => log('[Discord] Successfully connected to discord!'));
 
 client.on('error', (e) => out(e.message));
 
+client.on('voiceStateUpdate', (oldm, newm) => {
+  if (!newm.voiceChannelID) return;
+  let newID = newm.voiceChannelID;
+  for (const [tag] of Object.entries(servers)) {
+    for (const [id, obj] of Object.entries(voice[tag].ids)) {
+      if (obj.discordid && (obj.discordid == newm.id) && voice[tag].channels[obj.team] && (newID != voice[tag].channels[obj.team].id)) {
+        synchronizeVoice(obj.discordid, voice[tag].channels[obj.team].id)
+        .catch((e) => out(e, 'Voice Move'));
+      }
+    }
+  }
+});
+
 client.on('message', (message) => {
-  if(message.channel.type == 'text' && channels[message.channel.id]) {  // only take commands from active channel
-    if((message.author.id !== client.user.id) && message.content.startsWith(prefix)) {
-      const args = message.content.slice(prefix.length).split(' ');
-      const cmd = args.shift().toLowerCase();
-      if(cmd && cmd != ''){  // a command was issued
-        log(`[Command] ${getNick(message.author, message.guild)}: ${message}`);
-        let address = channels[message.channel.id].address;
-        let port = channels[message.channel.id].port;
+  if((!message.channel.type == 'text') || (message.author.id == client.user.id)) return;  // only take commands from active channel
+  if(channels[message.channel.id] && message.content.startsWith(prefix)) {
+    const args = message.content.slice(prefix.length).split(' ');
+    const cmd = args.shift().toLowerCase();
+    if(cmd && cmd != ''){  // a command was issued
+      if (cmd == 'embeds') {
+        useEmbeds = !useEmbeds;
+        message.channel.send(':warning: Embedded messages are now ' + (useEmbeds ? 'en' : 'dis') + 'abled for this bot.')
+        .catch((e) => out(e, 'Send'));
+        return
+      }
+      log(`[Command] ${getNick(message.author, message.guild)}: ${message}`);
+      let address = channels[message.channel.id].address;
+      let port = channels[message.channel.id].port;
+      let tbl = {
+        user: getNick(message.author, message.guild),
+        userid: message.author.id,
+        prefix: prefix,
+        cmd: cmd,
+        args: args.join(' ')
+      };
+      sendUDP(tbl, address, port);
+    } 
+  } else {
+    let onlyrequest = false,
+        id,
+        tag,
+        _pid;
+    for (const [stag, info] of Object.entries(voice)) {
+      for (const [pid, obj] of Object.entries(voice[stag].ids)) {
+        if(pid.toString() == message.content) {
+          tag = stag;
+          id = voice[stag].ids[pid];
+          _pid = pid;
+        }
+      }
+      if (!id) {
+        for (const [rid] of Object.entries(voice[stag].requests)) {
+          if (rid.toString() == message.content) {
+            tag = stag;
+            id = voice[stag].requests[rid];
+            _pid = rid
+            onlyrequest = true
+          }
+        }
+      }
+    }
+    if(!id) return;
+    if(!id.discordid) {
+      let allchannels = voice[tag].channels.names;
+      if (onlyrequest) {
+        message.channel.send(`Hey ${message.author.username}, your discord account is now linked to auto-voice on ${id.sname}.\nIf you join voicechat (${allchannels.join('/')}) on '${id.guild}', you will be auto-switched to the respective team channel when logged in.\n\nTo easily log in with a single press on F2 whenever you connect to ${id.sname}, paste the following line in your game:` + '\n```/bind "F2" [servcmd voice ' + _pid + ']```\nHave fun! :smile:').catch((e) => out(e, 'Send'));
         let tbl = {
-          user: getNick(message.author, message.guild),
-          userid: message.author.id,
-          prefix: prefix,
-          cmd: cmd,
-          args: args.join(' ')
+          voice: true,
+          cmd: "#vreqsuccess",
+          did: message.author.id,
+          dname: message.author.username,
+          id: message.content,
         };
-        sendUDP(tbl, address, port);
-      } 
+        sendUDP(tbl, servers[id.tag].address, servers[id.tag].port);
+        delete voice[tag].requests[_pid];
+        onlyrequest = false;
+        return;
+      }
+      message.channel.send(`Hey ${message.author.username}, you are now linked to auto-voice on ${id.sname}.\nShould you join voicechat (${allchannels.join('/')}) on '${id.guild}', you will automatically be switched to the respective team channel.\n\n**Tip:** you can bind the command to your F2-key to easily log in the next time you connect:` + '\n```/bind "F2" [servcmd voice ' + _pid + ']```\nHave fun! :smile:').catch((e) => out(e, 'Send'));
+      log(`[Voice] Linked ${message.author.username} to ${id.cn}, team ${id.team} (${id.sname}).`);
+      voice[tag].ids[message.content].discordid = message.author.id;
+      let tbl = {
+        voice: true,
+        cmd: "#vlinksuccess",
+        did: message.author.id,
+        dname: message.author.tag,
+        id: message.content,
+        cn: id.cn,
+        team: id.team,
+      };
+      sendUDP(tbl, servers[id.tag].address, servers[id.tag].port);
+      let oldteam = voice[tag].ids[message.content].team;
+      voice[tag].ids[message.content].team = id.team;
+      if (voice[tag].channels[id.team]) {
+        synchronizeVoice(message.author.id, voice[tag].channels[id.team].id)
+        .catch((e) => { 
+          voice[tag].ids[message.content].team = oldteam;
+          out(e, 'Voice Move');
+        });
+      }
+    } else {
+      if(id.discordid == message.author.id) {
+        return message.channel.send(`Hey ${message.author.username}, you are still linked to cn ${id.cn} on ${id.sname}.\nIf you don't want to be linked anymore, simply reconnect.`).catch((e) => out(e, 'Send'));
+      }
     }
   }
 });
@@ -498,6 +903,8 @@ client.login(discordToken)
 
 // shutting down
 function terminate() {
+  let tbl = { cmd: "#nodeshutdown" };
+  for (const [tag] of Object.entries(servers)) { sendUDP(tbl, servers[tag].address, servers[tag].port) }
   client.destroy()
   .then(() => {
     log('[Discord] Logging out and terminating bot...');

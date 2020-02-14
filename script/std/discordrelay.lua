@@ -7,7 +7,7 @@
 local iterators, commands, playermsg, ban = require"std.iterators", require"std.commands", require"std.playermsg", require"std.ban"
 local putf, n_client, ipextra = require"std.putf", require"std.n_client", require"std.ipextra"
 local fp, L, ip, jsonpersist = require"utils.fp", require"utils.lambda", require"utils.ip", require"utils.jsonpersist"
-local map, pick, I = fp.map, fp.pick, fp.I
+local map, pick = fp.map, fp.pick
 
 local js, socket, udp = require"dkjson", require"socket", nil
 
@@ -15,12 +15,13 @@ local module = {
   config = { 
     udp = nil, 
     receiver = nil,
-    connected = connected, 
+    connected = false, 
     tag = cs.serverport, 
-    host = "", 
-    port = "", 
-    channel = "", 
-    scoreboardChannel = "", 
+    relayHost = "", 
+    relayPort = "", 
+    discordChannelID = "", 
+    scoreboardChannelID = "", 
+    voice = {},
     commands = {} 
   } 
 }
@@ -46,9 +47,28 @@ local function trim(str, custommax)
   return str, len > max
 end
 
+local function genID() -- rosettacode.org
+    local index, id, rnd = 0, ""
+    local chars = { "0123456789", "abcdefghijklmnopqrstuvwxyz" }
+    repeat
+      index = index + 1
+      rnd = math.random(chars[index]:len())
+      if math.random(2) == 1 then id = id .. chars[index]:sub(rnd, rnd)
+      else id = chars[index]:sub(rnd, rnd) .. id end
+      index = index % #chars
+    until id:len() >= 5
+    return id
+end
+
+local function privmsg(cn, msg)
+  if not engine.getclientinfo(cn) then return end
+  engine.sendpacket(cn, 1, putf({ 3 + #msg, r = 1}, server.N_SAYTEAM, cn, msg):finalize(), -1)
+end
+
 local function ciip(cn)
   return engine.ENET_NET_TO_HOST_32(engine.getclientip(cn))
 end
+
 
 
 --[[
@@ -60,34 +80,138 @@ local function formatUDP(tbl) return js.encode(jsonpersist.deepencodeutf8(tbl), 
 local function sendUDP(msg)
   local tbl = {}
   tbl.tag = cs.serverport
-  tbl.channel = module.config.channel
-  tbl.scoreboardChannel = module.config.scoreboardChannel
+  tbl.channel = module.config.discordChannelID
+  tbl.scoreboardChannel = module.config.scoreboardChannelID
+  tbl.voice = module.config.voice
   tbl.msg = msg
   if module.config.connected then
-    local res = udp:sendto(formatUDP(tbl), socket.dns.toip(module.config.host), module.config.port)
+    local res = udp:sendto(formatUDP(tbl), socket.dns.toip(module.config.relayHost), module.config.relayPort)
     if not res then engine.writelog("[Discord] Could not send message to discord interface.") end
   end
 end
 
-local function createUDP(host, port, tag, channel, scoreboardChannel)
+
+--voice pt. 1
+-- users can generate an id-code with #voice and the bot will link them to the discord userid
+-- cache the codes to enable easy-login after reconnect
+local discordids = jsonpersist.load("discordids") or {}
+local voiceids = {}
+
+local function persistdiscord(load)
+  jsonpersist.save(discordids, "discordids") 
+  for k, v in pairs(discordids) do discordids[k] = nil end
+  if not load then return end
+  discordids = jsonpersist.load("discordids")
+end
+
+local requestpurge = spaghetti.later(60000 * 10, function() sendUDP({ event = "voiceevent", action = "delrequests" }) end, true)
+
+local function promptcode(ci, botname, guildname, rec)
+  local cn, team = ci.clientnum, ci.team
+  local id = ci.extra.voicereq or nil
+  if not id then repeat id = genID() until not voiceids[id] and not discordids[id] end
+  voiceids[id] = true
+  local msg = ("Please send \"%s\" to \'%s\' in the \'%s\' discord to be linked with their voice channels%s."):format(id, botname, guildname, (rec and " or " .. rec  .. " and try again" or ""))
+  privmsg(ci.clientnum, msg)
+  if ci.extra.voicereq then return end
+  if requestpurge then -- give time window of 10 minutes for people to register on discord after disconnect
+    spaghetti.cancel(requestpurge)
+    spaghetti.later(60000 * 10, function() sendUDP({ event = "voiceevent", action = "delrequests" }) end, true)
+  end
+  ci.extra.voicereq = id
+  local res = { event = "voiceevent", action = "request", cn = cn, team = team, id = id, sname = cs.serverdesc }
+  sendUDP(res)
+end
+
+local function addvoicecmd(botname, guildname)
+  return commands.add("voice", function(info) 
+    local has, cn, name, team = info.ci.extra.voice, info.ci.clientnum, info.ci.name, info.ci.team
+    if has then
+      local msg = "You are already linked to '" .. has.dname .. "' on discord. Please /reconnect to unlink."
+      privmsg(cn, msg)
+      return
+    end
+    if info.args and info.args:match"^[^ ]*" == "pw" then
+      promptcode(info.ci, botname, guildname)
+      return
+    end
+    if info.args and discordids[info.args] then
+      for ci in iterators.select(L"_.extra.voice") do if ci.extra.voice.id == info.args then 
+        local msg = "You are already linked to voice with another client."
+        privmsg(cn, msg)       
+        return
+      end end
+      local userid = discordids[info.args]
+      local res = { event = "voiceevent", action = "login", cn = cn, team = team, did = userid, id = info.args, sname = cs.serverdesc }
+      sendUDP(res)
+      return
+    end
+    local id = info.ci.extra.voicereq or nil
+    if not id then repeat id = genID() until not voiceids[id] and not discordids[id] end
+    voiceids[id] = true
+    info.ci.extra.voicereq = id
+    local res = { event = "voiceevent", action = "getsimilar", name = name, cn = cn, team = team, id = id, sname = cs.serverdesc }
+    sendUDP(res)
+    return
+  end, "\f6Info\f7: Join a voice channel in the '" .. guildname .. "' discord and type \f6#voice \f7to link yourself to the team channel\n\f6Info\f7: OR: Type \f6#voice pw \f7and receive a password with which you can always log in automatically\n\f6Info\f7: OR: Type \f6#voice <code> \f7and log in with your discord account.")
+end
+
+local function createUDP(host, port, tag, channel, scoreboardChannelID, voice)
   udp = socket.udp()
   if not udp then
-    engine.writelog("[Discord] Could not create new UDP.")
-    return false
+    return false, "[Discord] Could not create new UDP."
   end
   udp:settimeout(0)
   engine.writelog("[Discord] Trying to connect to node discord interface...")
-  udp:sendto(formatUDP({ tag = tag, channel = channel, scoreboardChannel = scoreboardChannel, msg = { event = "register", server = cs.serverdesc } }), socket.dns.toip(host), port)
+  udp:sendto(formatUDP({ tag = tag, channel = channel, scoreboardChannel = scoreboardChannelID, voice = voice, msg = { event = "register", server = cs.serverdesc } }), socket.dns.toip(host), port)
   if module.config.receiver then spaghetti.cancel(module.config.receiver) end
   module.config.receiver = spaghetti.later(50, function()
     local datagram = udp:receive()
     if datagram then
       local info, pos, err = js.decode(jsonpersist.deepdecodeutf8(datagram), 1, nil)
       if info and not err then 
+        if info.voice then
+          if info.cmd and info.cmd == "#voiceregsuccess" and info.botname and info.guildname then
+            engine.writelog("[Discord] Successfully linked all voice channels!")
+            return addvoicecmd(info.botname, info.guildname)
+          elseif info.cmd and info.cmd == "#vlinksuccess" then
+            local ci = engine.getclientinfo(info.cn)
+            ci.extra.voice = { did = info.did, id = info.id, dname = info.dname }
+            for i, o in pairs(discordids) do if o == info.did then discordids[i] = nil end end
+            discordids[info.id] = info.did 
+            if ci.extra.voicereq then ci.extra.voicereq, voiceids[ci.extra.voicereq] = nil, nil end
+            persistdiscord(true)
+            server.sendservmsg("\f6Info\f7: " .. server.colorname(ci, nil) .. " has successfully linked themselves to auto-voice on discord.")
+            server.sendservmsg("\f6Info\f7: Type \f6#voice \f7to join in!")
+            local msg, rec = "You successfully linked yourself to " .. info.dname .. " on discord!", " If you haven't, join a voice channel to begin!"
+            privmsg(info.cn, msg .. (info.direct and "" or rec))
+            return
+          elseif info.cmd and info.cmd == "#vreqsuccess" then
+            discordids[info.id] = info.did 
+            persistdiscord(true)
+            server.sendservmsg("\f6Info\f7: " .. info.dname .. " has successfully linked themselves to auto-voice on discord.")
+            server.sendservmsg("\f6Info\f7: Type \f6#voice \f7to join in!")
+            return
+          elseif info.cmd and info.cmd == "#similarfail" then
+            privmsg(info.cn, "Voice fail: " .. info.reason .. ".")
+            local ci = engine.getclientinfo(info.cn)
+            promptcode(ci, info.botname, info.guildname, info.rec)
+            return
+          end
+        end
         local cmd, args = info.cmd, info.args
         if not info.user and (cmd == "#regsuccess") then 
           engine.writelog("[Discord] Connected to discord interface!")
           module.config.connected = true
+          return
+        elseif not info.user and (cmd == "#nodeshutdown") then 
+          for ci in iterators.select(L"_.extra.voice") do 
+            if ci.extra.voicereq then ci.extra.voicereq, voiceids[ci.extra.voicereq] = nil, nil end
+            if voiceids[ci.extra.voice.id] then voiceids[ci.extra.voice.id] = nil end
+            ci.extra.voice = nil
+            local msg = "Hi there, unfortunately the discord bot has been shut down and your voice session was purged. Please try using #voice again soon."
+            privmsg(ci.clientnum, msg)
+          end
           return
         end
         if not info.user then return end
@@ -97,7 +221,12 @@ local function createUDP(host, port, tag, channel, scoreboardChannel)
           local res = { event = "cmderr", user = info.user, userid = info.userid, msg = msg } 
           sendUDP(res)
         else
-          module.config.commands[cmd].fn(info)
+          local success, msg = module.config.commands[cmd].fn(info)
+          if success and msg then sendUDP(msg) end
+          if not success then
+            local res = { event = "cmderr", user = info.user, userid = info.userid, msg = msg or "Internal error." }
+            sendUDP(res)
+          end 
         end
       end
     end
@@ -114,27 +243,43 @@ local function createUDP(host, port, tag, channel, scoreboardChannel)
   return true
 end
 
-local function new(info)
+local function makeUDP(info)
+  module.config.relayHost, module.config.relayPort = info.relayHost, info.relayPort
+  module.config.discordChannelID, module.config.scoreboardChannelID, module.config.voice = tostring(info.discordChannelID), info.scoreboardChannelID and tostring(info.scoreboardChannelID) or nil, info.voice or nil
   if not info.relayHost or not info.relayPort or not info.discordChannelID or info.discordChannelID == "my-discord-channel-id" then 
-    engine.writelog("[Discord] Incomplete configuration. Check new().")
-    return
+    return false, "Incomplete configuration. A host, port and channel must be provided."
   end
   if info.scoreboardChannelID and info.discordChannelID == info.scoreboardChannelID then 
-    engine.writelog("[Discord] Error: Main channel and scoreboard channel must not be the same, not starting.")
-    return
+    return false, "Main channel and scoreboard channel must not be the same, not starting."
   end
-  module.config.host, module.config.port = info.relayHost, info.relayPort
-  module.config.channel, module.config.scoreboardChannel = tostring(info.discordChannelID), info.scoreboardChannelID and tostring(info.scoreboardChannelID) or nil
-  return createUDP(info.relayHost, info.relayPort, cs.serverport, info.discordChannelID, info.scoreboardChannelID)
+  if info.voice then
+    local chans, duplicate, toolong = {}, false, false
+    for c, i in pairs(info.voice) do 
+      if chans[i] then duplicate = true 
+      elseif #c > 4 then toolong = true end
+      chans[i] = true 
+    end
+    if duplicate then 
+      return false, "Voice Error: Voice channels must not be the same, not starting."
+    end
+    if toolong then 
+      return false, "Voice Error: Team names must be max. 4 characters in size, not starting."
+    end
+  end
+  return createUDP(info.relayHost, info.relayPort, cs.serverport, info.discordChannelID, info.scoreboardChannelID, info.voice)
+end
+
+local function new(info) 
+  local success, msg = makeUDP(info) 
+  if not success then if msg then return engine.writelog("[Discord] Something went wrong: " .. msg) end
+  else engine.writelog("[Discord] A new connection to the Discord interface has been launched.") end
 end
 
 commands.add("restartdiscord", function(info) 
   if info.ci.privilege < server.PRIV_ADMIN then return playermsg("Access denied.", info.ci) end  
-  if not module.config.host or not module.config.port or not module.config.channel then
-    return playermsg("\f6Info\f7: No configuration found. Please provide the main config and restart the server.", info.ci)
-  end
-  createUDP(module.config.host, module.config.port, cs.serverport, module.config.channel)
-  playermsg("\f6Info\f7: A new connection to the Discord interface has been launched.", info.ci)
+  local success, msg = makeUDP(module.config)
+  if not success then if msg then return playermsg("\f6Info\f7: Something went wrong: " .. msg, info.ci) end
+  else playermsg("\f6Info\f7: A new connection to the Discord interface has been launched.", info.ci) end
 end)
 
 
@@ -347,6 +492,7 @@ end)
 --[[
     Add some discord commands.
     Format: addcommand({cmdname[, alias1, alias2 ...]}, callback({user, userid, prefix, cmd, args}), argsstring, cmdhelpstring)
+    Every command should return true or false, and a success message in table format or an error string.
 ]]
 
 local cmdaliases = {}
@@ -376,7 +522,7 @@ end
 
 -- re-implement some commands
 addcommand("say", function(info) 
-  if not info.args or info.args == "" then return cmderror(info, "You need to enter a string.") end
+  if not info.args or info.args == "" then return false, "You need to enter a string." end
   local text = engine.decodeutf8(info.args)
   local name = engine.filtertext(info.user):sub(1, server.MAXNAMELEN):gsub("^$", "unnamed")
   local fakecn = 0
@@ -385,39 +531,39 @@ addcommand("say", function(info)
   engine.sendpacket(-1, 1, n_client(putf({#text + 9, r = 1}, server.N_TEXT, "[REMOTE] " .. text), fakecn):finalize(), -1)
   engine.sendpacket(-1, 1, putf({1, r = 1}, server.N_CDIS, fakecn):finalize(), -1)
   local res = { event = "cmdsay", name = c(name), txt = c(engine.filtertext(text, true, true)) }
-  sendUDP(res)
+  return true, res
 end, "<msg>", "Send a message to the server.")
 
 addcommand({"status", "players"}, function(info) 
-  if server.numclients(-1, false, true) == 0 then return cmderror(info, "No players connected.") end
+  if server.numclients(-1, false, true) == 0 then return false, "No players connected." end
   local modemap, players, str = gameStatus()
   local res = { event = "cmdstatus", modemap = modemap, map = c(server.smapname), nmap = server.smapname, players = players, str = trim(str) }
-  sendUDP(res)
+  return true, res
 end, nil, "View the server status.")
 
 addcommand("stats", function(info) 
-  if not info.args or info.args == "" then return cmderror(info, "You need to enter a cn.") end
+  if not info.args or info.args == "" then return false, "You need to enter a cn." end
   local cn = tonumber(info.args)
-  if not cn or not engine.getclientinfo(cn) then return cmderror(info, "Player not found.") end
+  if not cn or not engine.getclientinfo(cn) then return false, "Player not found." end
   local ci = engine.getclientinfo(cn)
   local location = ci.extra.geoip and prettygeoip(ci.extra.geoip) or "Unknown"
   local country = ci.extra.geoip and prettygeoip(ci.extra.geoip, true) or "Unknown"
   local contime = prettytime(ci.extra.contime)
   local stats = playerStats(ci, nil, false, server.m_ctf or server.m_hold)  
   local res = { event = "cmdstats", name = ci.name, cn = ci.clientnum, location = c(location), country = c(country), contime = contime, stats = stats }
-  sendUDP(res) 
+  return true, res
 end, "<cn>", "See the stats of player <cn>.")
 
 addcommand("getip", function(info)
-  if not info.args or info.args == "" then return cmderror(info, "You need to enter a cn.") end
+  if not info.args or info.args == "" then return false, "You need to enter a cn." end
   local cn = tonumber(info.args)
-  if not cn or not engine.getclientinfo(cn) then return cmderror(info, "Player not found.") end
+  if not cn or not engine.getclientinfo(cn) then return false, "Player not found." end
   local ci = engine.getclientinfo(cn)
   local location = ci.extra.geoip and prettygeoip(ci.extra.geoip) or "Unknown"
   local country = ci.extra.geoip and prettygeoip(ci.extra.geoip, true) or "Unknown"
   local contime = prettytime(ci.extra.contime)
   local res = { event = "cmdgetip", name = ci.name, cn = ci.clientnum, location = c(location), country = c(country), contime = contime, ip = tostring(ip.ip(ci)) }
-  sendUDP(res) 
+  return true, res
 end, "<cn>", "Display IP of player <cn>.")
 
 addcommand("help", function(info) 
@@ -433,13 +579,13 @@ addcommand("help", function(info)
     list[n] = { name = c, cmdargs = cmd.cmdargs, help = cmd.help}
   end end
   local res = { event = "cmdhelp", server = cs.serverdesc, list = list }
-  sendUDP(res) 
+  return true, res
 end, nil, "View bot commands and functionality.")
 
 addcommand({"disc", "disconnect"}, function(info)
   local cns, cnerr = {}, false
   for cn in info.args:gmatch("%d+") do table.insert(cns, tonumber(cn)) end
-  if not next(cns) then return cmderror(info, "You need to enter which cns to disconnect.") end
+  if not next(cns) then return false, "You need to enter which cns to disconnect." end
   for _, cn in ipairs(cns) do
     who = engine.getclientinfo(cn)
     if who and who.clientnum then
@@ -447,20 +593,22 @@ addcommand({"disc", "disconnect"}, function(info)
       engine.disconnect_client(who.clientnum, engine.DISC_MAXCLIENTS)
     else cnerr = true end
   end 
-  if cnerr then cmderror(info, "At least one cn you entered could not be disconnected.") end
+  if cnerr then return false, "At least one cn you entered could not be disconnected." end
 end, "<cn> [<cn> <cn>...]", "Disconnect player(s) <cn> sending the message 'server FULL'.")
 
 addcommand("syncserver", function(info)
-  if not module.config.host or not module.config.port or not module.config.channel then
-    return cmderror(info, "No configuration found. Please provide the main config and restart the server.")
+  local success, msg = makeUDP(module.config)
+  if not success then if msg then return false, "Something went wrong: " .. msg end
+  else 
+    local res = { event = "info", txt = "A new connection to the Discord interface has been launched." }
+    return true, res  
   end
-  createUDP(module.config.host, module.config.port, cs.serverport, module.config.channel, module.config.scoreboardChannel)
 end, nil, "Refreshes UDP connection of gameserver '" .. cs.serverdesc .. "'; clears status channel.")
 
 addcommand("mute", function(info)
-  if not info.args or info.args == "" then return cmderror(info, "You need to enter a cn.") end
+  if not info.args or info.args == "" then return false, "You need to enter a cn." end
   local who = engine.getclientinfo(tonumber(info.args) or -1)
-  if not who then return cmderror(info, "Player not found.") end
+  if not who then return false, "Player not found." end
   local muted = who.extra.ipextra.muted
   if muted then spaghetti.cancel(muted) end
   local _ip = ip.ip(ciip(who.clientnum))
@@ -473,23 +621,23 @@ addcommand("mute", function(info)
   end)
   local txt = ("Muted %s (%d) for one hour."):format(who.name, who.clientnum)
   local res = { event = "info", txt = txt }
-  sendUDP(res) 
   engine.writelog("Discord: " .. info.user .. " muted " .. tostring(ip.ip(_ip)))
+  return true, res
 end, "<cn>", "Mute a player for 1 hour.")
 
 addcommand("unmute", function(info)
-  if not info.args or info.args == "" then return cmderror(info, "You need to enter a cn.") end
+  if not info.args or info.args == "" then return false, "You need to enter a cn." end
   local who = engine.getclientinfo(tonumber(info.args) or -1)
-  if not who then return cmderror(info, "Player not found.") end
+  if not who then return false, "Player not found." end
   local _ip, extra = ip.ip(ciip(who.clientnum)), who.extra.ipextra
   local muted = extra.muted
-  if not muted then return cmderror(info, "This player is not muted.") end
+  if not muted then return false, "This player is not muted." end
   spaghetti.cancel(muted)
   extra.muted = nil
   local txt = ("Unmuted %s (%d)."):format(who.name, who.clientnum)
   local res = { event = "info", txt = txt }
-  sendUDP(res) 
   engine.writelog("Discord: " .. info.user .. " unmuted " .. tostring(ip.ip(_ip)))
+  return true, res
 end, "<cn>", "Unmute a player.")
 
 local timespec = { d = { m = 60*60*24, n = "days" }, h = { m = 60*60, n = "hours" }, m = { m = 60, n = "minutes" } }
@@ -501,16 +649,16 @@ local function kickban(info, pban)
   else force, who, name, time, mult, msg = info.args:match("^(!?)([%d%./]+)%s*([^ %d]*)%s*(%d*)([DdHhMm]?)%s*(.-)%s*$") end
   local cn, _ip = tonumber(who), ip.ip(who or "")
   force, list, msg = force == "!", name == "" and "kick" or name, msg ~= "" and msg or nil
-  if (not cn and not _ip) or (not _ip and force) or (not pban and (not time or (time ~= "" and not timespec[mult]))) then return cmderror(info, "Bad format.") end
+  if (not cn and not _ip) or (not _ip and force) or (not pban and (not time or (time ~= "" and not timespec[mult]))) then return false, "Bad format." end
   if not pban then 
     if time == "" then time, msg = 4*60*60, mult ~= "" and msg and mult .. " " .. msg or msg
-    elseif time == '0' then return cmderror(info, "Cannot ban for no time.")
+    elseif time == '0' then return false, "Cannot ban for no time."
     else time = timespec[mult].m * time end
   else time = nil end
-  if not banlists[list] then return cmderror(info, "Ban list '" .. list .. "' not found.") end
+  if not banlists[list] then return false, "Ban list '" .. list .. "' not found." end
   _ip = _ip or ip.ip(ciip(cn))
-  if cn and _ip.ip == 0 then return cmderror(info, "Player not found.") end
-  if cn and engine.getclientinfo(cn).privilege >= server.PRIV_ADMIN then return cmderror(info, "The player has sufficient credentials to bypass the ban, not adding.") end
+  if cn and _ip.ip == 0 then return false, "Player not found." end
+  if cn and engine.getclientinfo(cn).privilege >= server.PRIV_ADMIN then return false, "The player has sufficient credentials to bypass the ban, not adding." end
   local found, contained, matched1, matched2 = false, false, {}, {} 
   for ban, expire, msg in ban.enum(list) do 
     if ban:matches(_ip) then found, matched1[ban], contained = true, true, ip.ip(ban).mask < _ip.mask
@@ -521,7 +669,7 @@ local function kickban(info, pban)
     if next(matched1) and contained then failmsg = "it is already contained by " .. tostring(next(matched1))
     elseif next(matched1) and next(matched1) == _ip then failmsg = not force and "it is already present" 
     elseif next(matched2) and next(matched2) ~= _ip then failmsg = not force and "it contains ranges " .. table.concat(map.lp(tostring, matched2), ", ") .. ".\nPrepend a '!' to coalesce present ranges" end
-    if failmsg then cmderror(info, "Not adding ban because " .. failmsg .. ".") return end
+    if failmsg then return false, "Not adding ban because " .. failmsg .. "." end
     if next(matched1) then for range in pairs(matched1) do ban.unban(list, range, true) end
     elseif next(matched2) then for range in pairs(matched2) do ban.unban(list, range, true) end end
   end
@@ -531,9 +679,9 @@ local function kickban(info, pban)
   ban.ban(list, _ip, msg, time, nil, engine.decodeutf8(admin))
   local res = { event = "info", txt = ("Added a ban on %s in banlist '%s'."):format(tostring(_ip), list) }
   sendUDP(res)
-  if not next(kicked) then return end
-  local res = { event = "kick", str = ("%s bans %s"):format(c(admin), tostring(_ip)) }
-  sendUDP(res)
+  if not next(kicked) then return true end
+  local res2 = { event = "kick", str = ("%s bans %s"):format(c(admin), tostring(_ip)) }
+  return true, res2
 end
 addcommand(
   {"ban", "kick"}, 
@@ -552,8 +700,8 @@ addcommand("unban", function(info)
   local force, who, name = info.args:match("^(!?)([%d%./]+)%s*([^%s]*)%s*$")
   local _ip = ip.ip(who or "")
   name, force = name == "" and "kick" or name, force == "!"
-  if not _ip then return cmderror(info, "Bad format.") end
-  if not banlists[name] then return cmderror(info, "Ban list '" .. name .. "' not found.") end
+  if not _ip then return false, "Bad format." end
+  if not banlists[name] then return false, "Ban list '" .. name .. "' not found." end
   local found, contained, matched1, matched2 = false, false, {}, {} 
   for ban, expire, msg in ban.enum(name) do 
     if ban:matches(_ip) then found, matched1[ban], contained = true, true, ip.ip(ban).mask < _ip.mask
@@ -563,11 +711,11 @@ addcommand("unban", function(info)
   if not found then failmsg = "it is not in banlist '" .. name .. "'"
   elseif next(matched1) and contained then failmsg = "it would still be contained by " .. tostring(next(matched1)) 
   elseif next(matched2) and next(matched2) ~= _ip then failmsg = not force and "it contains ranges " .. table.concat(map.lp(tostring, matched2), ", ") .. ".\nPrepend a '!' to force-remove all included ranges" end
-  if failmsg then cmderror(info, "Not deleting ban because " .. failmsg .. ".") return end
+  if failmsg then return false, "Not deleting ban because " .. failmsg .. "." end
   if next(matched1) then for range in pairs(matched1) do ban.unban(name, range) end
   elseif next(matched2) then for range in pairs(matched2) do ban.unban(name, range) end end
   local res = { event = "info", txt = ("Deleted the ban on %s from banlist '%s'."):format(tostring(_ip), name) }
-  sendUDP(res)
+  return true, res
 end, "<[!]range> [<list=kick>]", "Unban an IP(range) [from banlist].\nIf !forced, removes all included ranges.")
 
 local function fetchbans(list)
@@ -583,7 +731,7 @@ end
 
 addcommand("banlist", function(info)
   local list, lists, blist, istrimmed, all = info.args:match("([^ %d]*)"), {}, {}, false, false
-  if list and list ~= "" and not banlists[list] then return cmderror(info, "Ban list '" .. list .. "' not found.") end
+  if list and list ~= "" and not banlists[list] then return false, "Ban list '" .. list .. "' not found." end
   if list and list ~= "" then
     local lstr
     local bans = fetchbans(list)
@@ -602,10 +750,10 @@ addcommand("banlist", function(info)
   end
   local res = { event = "cmdbanlist", all = all, lists = lists, blist = blist }
   sendUDP(res)
-  if not istrimmed then return end
+  if not istrimmed then return true end
   local txt = "At least one banlist is too long to display and had to be trimmed in length.\nCheck " .. info.prefix .. "banlist <list> for a more complete enumeration."
   local res = { event = "info", txt = txt }
-  sendUDP(res)
+  return true, res
 end, "[<list>]", "List bans from all or one of the following lists: kick, openmaster, teamkill")
 
 --[[
@@ -639,6 +787,31 @@ local function discordnotify(args)
 end
 
 require"std.abuse".cheatercmd(discordnotify, 20000, 1/30000, 3)
+
+
+-- voice pt. 2
+spaghetti.addhook("clientdisconnect", function(info)
+  if info.ci.extra.voicereq then voiceids[info.ci.extra.voicereq] = nil end
+  if info.ci.extra.voice then voiceids[info.ci.extra.voice.id] = nil end
+  local res = { event = "voiceevent", action = "disconnect", cn = info.ci.clientnum } 
+  sendUDP(res)
+end, true)
+
+spaghetti.addhook("noclients", function(info) for k, _ in pairs(voiceids) do voiceids[k] = nil end end)
+
+local function voiceupdate()
+  local voiceinfo = {}
+  for ci in iterators.select(L"_.extra.voice") do voiceinfo[tostring(ci.clientnum)] = ci.team end
+  if not next(voiceinfo) then return end
+  local res = { event = "voiceevent", action = "update", voiceinfo = voiceinfo }
+  sendUDP(res)
+end
+
+-- sync regularly
+map.nv(function(t) spaghetti.addhook(t, function() spaghetti.later(50, function() voiceupdate() end) end) end, 
+  "changemap", server.N_SWITCHTEAM, server.N_SETTEAM)
+
+spaghetti.addhook("changemap", function() spaghetti.latergame(30000, function() voiceupdate() end, true) end)
 
 
 -- export some utils

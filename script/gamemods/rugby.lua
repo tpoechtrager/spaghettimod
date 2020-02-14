@@ -25,7 +25,7 @@ module.effects = {
     z = 0,        -- add to z
     particle = {
       a1 = 11,    -- particle type; I use flames so the following attributes are:
-      a2 = 70,    -- radius
+      a2 = 50,    -- radius
       a3 = 50,    -- height
       a4 = 0x060, -- color
       a5 = 0      -- unused
@@ -69,6 +69,10 @@ local function inrange(actor, target)
   return vec3(actor.state.o):dist(target.state.o) <= (basedist * share)
 end
 
+local function valident(ent)
+  return 
+end
+
 
 --[[ 
     Particle effects: Highlight all teammates in pass-range for the flagholder. Also indicate to teammates if the flagholder can pass to them. 
@@ -76,33 +80,33 @@ end
     to update its position/appearance on the client side. Somewhat like std.trackent but better suited for this application.
 ]] 
 
-local function starthlmate(ci, mate, isflagholder)
-  if not highlights then return end
-  if ci.state.aitype == server.AI_BOT then return end
-  local effect = isflagholder and module.effects.flagholder or module.effects.teammates 
-  local pe, o, i = effect.particle, vec3(mate.state.o), mate.extra.particle
-  if not i or not o then return end
-  o.z = o.z + effect.z
-  local p = n_client(putf({r = true}, server.N_EDITENT, i, o.x * server.DMF, o.y * server.DMF, o.z * server.DMF, server.PARTICLES, pe.a1, pe.a2, pe.a3, pe.a4, pe.a5), ci):finalize()
-  engine.sendpacket(ci.clientnum, 1, p, -1)
-end
-
 local function stophlmate(ci, mate)
   if not highlights then return end
   if ci.state.aitype == server.AI_BOT then return end
-  local i = mate.extra.particle
-  if not i then return end 
+  local i, _, ment = ents.getent(mate.extra.particle)
+  if not i or ment.type ~= server.NOTUSED then return end 
   local p = n_client(putf({ 20, r = 1}, server.N_EDITENT, i, -1e7,  -1e7,  -1e7, server.NOTUSED, 0, 0, 0, 0, 0), ci):finalize()
+  engine.sendpacket(ci.clientnum, 1, p, -1)
+end
+
+local function starthlmate(ci, mate, isflagholder)
+  if not highlights or not (ci.team == mate.team) then stophlmate(ci, mate) return end
+  if ci.state.aitype == server.AI_BOT then return end
+  local effect = isflagholder and module.effects.flagholder or module.effects.teammates 
+  local pe, o, i, _, ment = effect.particle, vec3(mate.state.o), ents.getent(mate.extra.particle)
+  if not i or not o or ment.type ~= server.NOTUSED then return end
+  o.z = o.z + effect.z
+  local p = n_client(putf({r = true}, server.N_EDITENT, i, o.x * server.DMF, o.y * server.DMF, o.z * server.DMF, server.PARTICLES, pe.a1, pe.a2, pe.a3, pe.a4, pe.a5), ci):finalize()
   engine.sendpacket(ci.clientnum, 1, p, -1)
 end
 
 local function starthighlights(ci)
   if not highlights then return end
   ci.extra.highlightlater = spaghetti.later(100, function() 
-    for p in iterators.inteam(ci.team) do
+    for p in iterators.all() do
       stophlmate(ci, p)
       stophlmate(p, ci)
-      if (p.state.state == engine.CS_ALIVE) and inrange(ci, p) and (ci.clientnum ~= p.clientnum) then
+      if (p.state.state == engine.CS_ALIVE) and inrange(ci, p) and (ci.clientnum ~= p.clientnum) and (ci.team == p.team) then
         starthlmate(ci, p)
         starthlmate(p, ci, true)
       end
@@ -125,19 +129,26 @@ local function stophighlights(ci, notall)
   ci.extra.highlightlater = nil
 end
 
+commands.add("hltoggle", function(info)
+  if info.ci.privilege < server.PRIV_ADMIN then return playermsg("Access denied.", info.ci) end  
+  if highlights then for p in iterators.all() do stophighlights(p) end end
+  highlights = not highlights
+  playermsg("\f6Info\f7: Radius highlights are " .. (highlights and "enabled" or "disabled") .. " from now on.", info.ci)
+end)
+
 
 --[[ 
     Rugby implementation 
 ]]
 
+
 function module.on(state)
   map.np(L"spaghetti.removehook(_2)", hooks)
-  commands.remove("hltoggle")
   if not state then return end
   highlights = state
   hooks = {}
   hooks.dodamagehook = spaghetti.addhook("dodamage", function(info)
-    if info.skip or info.target.team ~= info.actor.team or info.gun ~= server.GUN_RIFLE then return end
+    if info.skip or not server.m_ctf or info.target.team ~= info.actor.team or info.gun ~= server.GUN_RIFLE then return end
     local flags, actorflags = server.ctfmode.flags, {}
     for i = 0, flags:length() - 1 do if flags[i].owner == info.actor.clientnum then actorflags[i] = true end end
     if not next(actorflags) then return end
@@ -161,14 +172,14 @@ function module.on(state)
   end)
   hooks.disconnecthook = spaghetti.addhook("clientdisconnect", function(info) 
     stophighlights(info.ci)
-    if info.ci.extra.particle then info.ci.extra.particle = nil end -- keep the ent in server.sents/ments
+    if info.ci.extra.particle then ents.delent(info.ci.extra.particle) end -- delete ent entirely
   end)
   hooks.botjoin = spaghetti.addhook("botjoin", function(info) 
     info.ci.extra.particle = ents.newent(server.NOTUSED, nil, 0, 0, 0, 0, 0, L"")
   end)
   hooks.botleave = spaghetti.addhook("botleave", function(info) 
     stophighlights(info.ci)
-    if info.ci.extra.particle then info.ci.extra.particle = nil end
+    if info.ci.extra.particle then ents.delent(info.ci.extra.particle) end
   end)
   hooks.diedhook = spaghetti.addhook("notalive", function(info) 
     stophighlights(info.ci, true)
@@ -192,11 +203,17 @@ function module.on(state)
   hooks.changemap = spaghetti.addhook("changemap", function(info) 
     for p in iterators.all() do stophighlights(p, true) end
   end)
-  commands.add("hltoggle", function(info)
-    if info.ci.privilege < server.PRIV_ADMIN then return playermsg("Access denied.", info.ci) end  
-    if highlights then for p in iterators.all() do stophighlights(p) end end
-    highlights = not highlights
-    playermsg("\f6Info\f7: Radius highlights are " .. (highlights and "enabled" or "disabled") .. " from now on.", info.ci)
+  hooks.changemap = spaghetti.addhook("changemap", function(info) 
+    for p in iterators.all() do 
+      stophighlights(p, true) 
+    end
+  end)
+  hooks.maploaded = spaghetti.addhook("maploaded", function(info) 
+    if info.ci.extra.particle then 
+      ents.delent(info.ci.extra.particle) 
+      info.ci.extra.particle = nil
+    end 
+    info.ci.extra.particle = ents.newent(server.NOTUSED, nil, 0, 0, 0, 0, 0, L"")
   end)
 end
 
