@@ -11,11 +11,6 @@ local module = {}
 local dodamagehook
 local basedist
 
-local function stringify(pos)
-  if not pos or not (pos.x and pos.y and pos.z) then return end
-  return "x=" .. pos.x .. " y=" .. pos.y .. " z=" .. pos.z
-end
-
 local function specialmap()
   return server.smapname == "recovery" and 1000 or server.smapname == "mercury" and 1500 or nil
 end

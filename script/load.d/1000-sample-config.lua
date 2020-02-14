@@ -4,11 +4,11 @@
 
 ]]--
 
-if not os.getenv("B") then return end
-engine.writelog("Applying the sample configuration. Port: 28785")
+if not os.getenv("PISTOVPS") then return end
+engine.writelog("Applying the sample configuration.")
 
 local servertag = require"utils.servertag"
-servertag.tag = "b"
+servertag.tag = "pisto"
 
 local uuid = require"std.uuid"
 
@@ -17,28 +17,54 @@ local map, I = fp.map, fp.I
 local abuse, playermsg = require"std.abuse", require"std.playermsg"
 
 cs.maxclients = 42
-cs.serverport = 28785
-
-cs.updatemaster = 0
+cs.serverport = 1024
 spaghetti.later(10000, L'engine.requestmaster("\\n")', true)
 spaghetti.addhook("masterin", L'if _.input:match("^failreg") then engine.lastupdatemaster = 0 end', true)
 
 --make sure you delete the next two lines, or I'll have admin on your server.
-cs.serverauth = "spaghettimod"
+cs.serverauth = "pisto"
 local auth = require"std.auth"
-cs.adduser("benzomatic", "spaghettimod", "-cb04df9dbdf08e2f9e41d34d1ecc1ebe1a6eb05fdd96a846", "a")
-table.insert(auth.preauths, "spaghettimod")
-
+cs.adduser("Frosty", "SL-admin", "-d1d22314f8dd21a1e038833cdd74feaf020b8aa7af534725", "a")
+cs.adduser("pisto", "pisto", "+515027a91c3de5eecb8d0e0267f46d6bbb0b4bd87c4faae0", "a")
+cs.adduser("Fear", "pisto", "+6c9ab9b9815cd392f83edb0f8c6c1dd35e4e262ff2190a7f", "m")
+cs.adduser("Frosty", "pisto", "+bebaea64312c9c9365b0d54f8d013b546811b0da44284d33", "m")
+cs.adduser("llama", "pisto", "+2d04377064720d72467ec71c165d185fc776bb5b437e71e4", "m")
+cs.adduser("Dino_Martino", "pisto", "+8e786719673d030939d873ca0258913c69379581666d6cb7", "m")
+cs.adduser("Buck", "pisto", "+5028b0663cf878a8b14d57f97ec06295b7a87676f881b6bc", "m")
+cs.adduser("Pink", "pisto", "+48188ad779be16a77820ecba07f198b8d5898b9b9932b0a9", "m")
+cs.adduser("Zaharia", "pisto", "-402f911db546976370f9f971477dd3d0563a6d6125b685bf", "m")
+cs.adduser("S4US3SCHR1TT", "pisto", "-976346001fbbbba812d28d8214bede17e71bd35c8aec68e2", "m")
+cs.adduser("quico", "pisto", "-d4c7af1291e4b22d1c93639861e074af43de814495e9d69c", "m")
+cs.adduser("LordBug", "pisto", "-2ea3c4511769fabceee754e7a22b71b7e02b31a25227f2bf", "m")
+cs.adduser("ne0n", "pisto", "+c799c10fc19b95d230bb91430f4dfd92234896c1bcfa29f6", "m")
+cs.adduser("hades", "pisto", "+2651a29f0060d48c37534a2509698c798c21fafd454fd9b8", "m")
+cs.adduser("firefly", "pisto", "-88a2394cbb748897bb28ba2b37c949b29019ad12320c55bb", "m")
+cs.adduser("Charlotte", "pisto", "-4b7f5b00186b068aba0f85942a154ef7389fba048de88832", "m")
+cs.adduser("Jay", "pisto", "-2468d805d2fce755fb92114caa537e8787573300e0c049bd", "m")
+cs.adduser("Galaxy", "pisto", "+1e9244443a171573839c19bb96fb59d2532e9f17a2dd10e0", "m")
+cs.adduser("px", "pisto", "+bbec32b37c334bf798c9e79cdf8426ef33f3bdf83778ab52", "m")
+cs.adduser("Mr.Benz", "pisto", "+21485c750d9a39d9373576312418ba63928333756538e506", "m")
+cs.adduser("a-monster", "pisto", "+15cb72e43e9ca29981636edf9e771b53c878a36a07244708", "m")
+cs.adduser("deathstar", "pisto", "+d7900617ee9d447a74692ff114384f8d2f2b8e8582fc7af0", "m")
+cs.adduser("swatllama", "pisto", "+e544f11d6424497013bacf99f01a3555d311954efbd111fe", "m")
+cs.adduser("noobie", "pisto", "-a590c205846c50b07ecfba22d3bc3e7fe6ad6bef554c73da", "m")
+cs.adduser("GustavoLapasta", "pisto", "-d9bf1ea15b96042ebada9c2dd14b928ea06642eaae318410", "m")
+cs.adduser("Squatch", "pisto", "+066875663ce6278b0f433ad6c7131b224682d705e715f4bb", "m")
+cs.adduser("waye", "pisto", "-5abdcd19e8db67cc36d0fc35d49c79d0086cb00c31f02f1a", "m")
+cs.adduser("Bourbon", "pisto", "+0f2a6f3683b17be2d2c8ba60cc2513a5ef12ada6599dfca0", "m")
+cs.adduser("MysteryCube", "pisto", "-7e263e59a19f54246afe95455e0c748088792557038a6171", "m")
+cs.adduser("miseria", "pisto", "-aca0a8e9e959dddf277abe812e38a6f9d66f8c5499dd12dc", "m")
+cs.adduser("Caveman", "pisto", "+89d59cb5022e7a2e52669675d1b2800038fd910958bc04f6", "m")
+cs.adduser("N", "pisto", "+ffdcd26483e457165452890f7cf1bd2b82fac852b254d7e3", "m")
+table.insert(auth.preauths, "pisto")
 
 spaghetti.addhook(server.N_SETMASTER, L"_.skip = _.skip or (_.mn ~= _.ci.clientnum and _.ci.privilege < server.PRIV_AUTH)")
 
-cs.serverdesc = ":: spaghettimod ::"
+cs.serverdesc = "\f7pisto.horse 1024"
 
 cs.lockmaprotation = 2
 cs.ctftkpenalty = 0
 cs.maprotationreset()
-
-
 --copied from data/menus.cfg
 local ffamaps, capturemaps, ctfmaps = table.concat({
   "aard3c academy akaritori alithia alloy aqueducts arbana bvdm_01 castle_trap collusion complex corruption curvedm curvy_castle darkdeath deathtek depot",
@@ -53,7 +79,7 @@ local ffamaps, capturemaps, ctfmaps = table.concat({
   "infamy killcore3 kopenhagen lostinspace mbt12 mercury monastery nevil_c nitro nmp4 nmp8 nmp9 nucleus ogrosupply paradigm ph-capture reissen",
   "relic river_c serenity snapper_rocks spcr subterra suburb tempest tortuga turbulence twinforts urban_c valhalla venice xenon"
 }, " "), table.concat({
-   "abbey akroseum arbana asgard authentic autumn bad_moon berlin_wall bt_falls campo capture_night catch22 core_refuge core_transfer damnation desecration dust2",
+  "abbey akroseum arbana asgard authentic autumn bad_moon berlin_wall bt_falls campo capture_night catch22 core_refuge core_transfer damnation desecration dust2",
   "eternal_valley europium evilness face-capture flagstone forge forgotten garden hallo haste hidden infamy kopenhagen l_ctf mach2 mbt1 mbt12",
   "mbt4 mercury mill nitro nucleus recovery redemption reissen sacrifice shipwreck siberia snapper_rocks spcr subterra suburb tejen tempest",
   "tortuga turbulence twinforts urban_c valhalla wdcd xenon fc4 fc5 gubo donya duomo"
@@ -70,13 +96,12 @@ ffamaps, capturemaps, ctfmaps = map.uv(function(maps)
   return table.concat(t, " ")
 end, ffamaps, capturemaps, ctfmaps)
 
-cs.maprotation("instactf", ctfmaps)
+cs.maprotation("ffa effic tac teamplay efficteam tacteam", ffamaps, "regencapture capture hold effichold instahold", capturemaps, "ctf efficctf instactf protect efficprotect instaprotect", ctfmaps)
 server.mastermask = server.MM_PUBSERV + server.MM_AUTOAPPROVE
 
-local fp, L, ents = require"utils.fp", require"utils.lambda", require"std.ents"
-local vec3 = require("utils.vec3");
-local map = fp.map
-local commands = require"std.commands"
+--gamemods
+require"gamemods.quadarmour".on(1/2, 6, 0, 20000, 30000, server.A_GREEN, 100)
+spaghetti.addhook("changemap", L'require"gamemods.rugby".on(server.m_ctf)')
 
 local passes = {}
 local function resetstreak(info) if not info.i then passes = {} else passes[info.i] = nil end end
@@ -102,6 +127,7 @@ spaghetti.addhook("scoreflag", function(info)
   server.sendservmsg("Passes in flagrun (+1 flag point): " .. table.concat(map.li(L"server.colorname(_2, nil)", streak), ", "))
 end)
 
+local commands = require"std.commands"
 local nextflagswitch = false
 commands.add("flagswitch", function(info)
   local arg = info.args == "" and 1 or tonumber(info.args)
@@ -126,10 +152,16 @@ end)
 local ents = require"std.ents", require"std.maploaded"
 require"std.pm"
 require"std.getip"
-require"std.specban"
---require"std.autobalance"
 
-spaghetti.addhook("changemap", L'require"gamemods.rugby".on(server.m_ctf)')
+spaghetti.addhook("entsloaded", function()
+  if server.smapname ~= "thetowers" then return end
+  for i, _, ment in ents.enum(server.JUMPPAD) do if ment.attr4 == 40 then
+    ents.editent(i, server.JUMPPAD, ment.o, ment.attr1, ment.attr2, ment.attr3)
+    break
+  end end
+end)
+
+--moderation
 
 require"std.discordrelay".new({
   relayHost = "127.0.0.1", 
@@ -141,16 +173,6 @@ require"std.discordrelay".new({
     evil = "evil-voice-channel"
   }
 })
-
-spaghetti.addhook("entsloaded", function()
-  if server.smapname ~= "thetowers" then return end
-  for i, _, ment in ents.enum(server.JUMPPAD) do if ment.attr4 == 40 then
-    ents.editent(i, server.JUMPPAD, ment.o, ment.attr1, ment.attr2, ment.attr3)
-    break
-  end end
-end)
-
---moderation
 
 cs.teamkillkick("*", 7, 30)
 
@@ -232,7 +254,7 @@ local function ircnotify(args)
   if pisto then pisto:write('\n') pisto:close() end
 end
 
--- deactivate this for the discord bot
+--disable this command for the discord module
 --abuse.cheatercmd(ircnotify, 20000, 1/30000, 3)
 
 local sound = require"std.sound"
@@ -273,8 +295,24 @@ local function gamemoddesc()
   return msg
 end
 
+banner = "\n\n\f7Welcome to pisto's horses playground. \f5This server runs continuously testing and experimental code.\n\f7Check out the \f6QUAD ARMOURS\f7! Replaces normal quad with 1/2 probability, gives undepletable armour.\nThis server has \f1FLAG SWITCH MODE\f7 (see #help flagswitch).\nctf/protect/hold have \f3RUGBY MODE\f7: shoot a teammate to pass the flag you are carrying!"
+spaghetti.addhook("maploaded", function(info)
+  if info.ci.extra.bannershown then
+    local moddesc = gamemoddesc()
+    return moddesc and playermsg(moddesc, info.ci)
+  end
+  info.ci.extra.bannershown = true
+  local ciuuid = info.ci.extra.uuid
+  spaghetti.later(1000, function()
+    local ci = uuid.find(ciuuid)
+    if not ci then return end
+    local moddesc = gamemoddesc()
+    playermsg(banner .. (moddesc and moddesc or ""), ci)
+  end)
+end)
+
 spaghetti.later(20000, function()
-  return server.m_ctf and server.sendservmsg("\nRemember, it's Rugby mode: you \f6shoot a \f0nearby \f6teammate \f7with rifle to \f6pass the flag\f7!")
+  return server.m_ctf and server.sendservmsg("\nRemember, it's rugby mode: you \f6shoot a teammate\f7 with \f3rifle\f7 to \f6pass the flag\f7!")
 end, true)
 
 --lazy fix all bugs.

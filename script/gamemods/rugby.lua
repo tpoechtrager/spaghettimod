@@ -69,10 +69,6 @@ local function inrange(actor, target)
   return vec3(actor.state.o):dist(target.state.o) <= (basedist * share)
 end
 
-local function valident(ent)
-  return 
-end
-
 
 --[[ 
     Particle effects: Highlight all teammates in pass-range for the flagholder. Also indicate to teammates if the flagholder can pass to them. 
@@ -206,13 +202,13 @@ function module.on(state)
   hooks.changemap = spaghetti.addhook("changemap", function(info) 
     for p in iterators.all() do 
       stophighlights(p, true) 
+      if p.extra.particle then 
+        ents.delent(p.extra.particle) 
+        p.extra.particle = nil
+      end 
     end
   end)
   hooks.maploaded = spaghetti.addhook("maploaded", function(info) 
-    if info.ci.extra.particle then 
-      ents.delent(info.ci.extra.particle) 
-      info.ci.extra.particle = nil
-    end 
     info.ci.extra.particle = ents.newent(server.NOTUSED, nil, 0, 0, 0, 0, 0, L"")
   end)
 end
