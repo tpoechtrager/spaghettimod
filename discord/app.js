@@ -41,8 +41,7 @@ function addspaces(n) { // force a minimum width on embeds
 let ipregex = /\b(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\/[0-2]\d|\/3[0-2])?\b/gm;
 
 function maskIPs(str) { // anonymize IPs but still leave room to differentiate between them
-  let ipregex = /\b(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\/[0-2]\d|\/3[0-2])?\b/gm,
-      ipmasked = false;
+  let ipmasked = false;
 
   str = str.replace(ipregex, (m) => {
     m = ipregex.exec(m);
