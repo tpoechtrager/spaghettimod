@@ -108,8 +108,8 @@ function module.cheatercmd(lambda, lambdarate, userrate, usertokens)
     if not cmdrate() then playermsg("You are using this command too often.", info.ci) return end
     local ip = getip(who.state.aitype == server.AI_NONE and who or engine.getclientinfo(who.ownernum))
     local requests = pending[ip] or { total = 0, who = {} }
-    if not requests.who[who.extra.uuid] then
-      requests.total, requests.who[who.extra.uuid], requests.ai = requests.total + 1, true, requests.ai or who.state.aitype ~= server.AI_NONE or nil
+    if not requests.who[info.ci.extra.uuid] then
+      requests.total, requests.who[info.ci.extra.uuid], requests.ai = requests.total + 1, true, requests.ai or who.state.aitype ~= server.AI_NONE or nil
       pending[ip] = requests
     end
     playermsg("Ok, someone will look into this soon, please be patient.", info.ci)

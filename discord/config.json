@@ -4,7 +4,7 @@
     "commandPrefix": ".",
     "alerts": true,
     "alertChannelID": "alert-channel-id",
-    "useEmbeds": true,
+    "useEmbeds": false,
     "enableThumbnails": true,
     "enableScoreboard": true,
     "alwaysScoreboard": false

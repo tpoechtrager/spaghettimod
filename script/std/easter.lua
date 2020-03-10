@@ -243,11 +243,7 @@ end
 
 local function sparkle(egg)
   local o = egg.o
-  egg.sparkle = spaghetti.later(1000, function()
-    local l = 0
-    for i = 1, 4 do 
-      l = l + 200
-      spaghetti.latergame(l, function()
+  egg.sparkle = spaghetti.latergame(200, function()
         local spark = ents.newent(
                                   server.PARTICLES, 
                                   { 
@@ -256,16 +252,14 @@ local function sparkle(egg)
                                     z = o.z + 7 + tonumber(math.random() * 6 - 3)
                                   }, 
                                   4,                    -- streak effect
-                                  309,                  -- circular inverted
+                                  309,                -- circular inverted
                                   1,                    -- short length
                                   math.random(0, 0xFFF) -- random color
                                 ) 
         spaghetti.later(200, function() 
-          ents.delent(spark)    -- short lifespan
+			ents.delent(spark)    -- short lifespan
         end)
-      end)
-    end
-  end, true)
+      end, true)
 end
 
 local function spawnrandoments(max)
@@ -551,7 +545,7 @@ end)
 
 spaghetti.addhook(server.N_ADDBOT, function(info)
   if info.skip then return end
-  if enable and info.ci.privilege < server.PRIV_ADMIN then
+  if enable then
     info.skip = true
     playermsg("\f6Info\f7: Bots cannot be added in easter mode.", info.ci)
     return

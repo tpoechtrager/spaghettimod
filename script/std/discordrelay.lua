@@ -193,7 +193,7 @@ local function createUDP(host, port, tag, channel, scoreboardChannelID, voice)
             server.sendservmsg("\f6Info\f7: Type \f6#voice \f7to join in!")
             return
           elseif info.cmd and info.cmd == "#similarfail" then
-            privmsg(info.cn, "Voice fail: " .. info.reason .. ".")
+            privmsg(info.cn, "Sorry, but " .. info.reason .. ".")
             local ci = engine.getclientinfo(info.cn)
             promptcode(ci, info.botname, info.guildname, info.rec)
             return
@@ -368,7 +368,7 @@ local function listPlayers(team)
     if not next(points) then break end
   end
   for k,v in pairs(points) do points[k] = nil end
-  if (str == "") or (str == "\n") then return nil else return str end
+  if (str == "") or (str == "\n") then return "" else return str end
 end
 
 local function gameStatus(freshconnect)

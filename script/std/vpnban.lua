@@ -29,9 +29,7 @@ local function iplookup(lookupip)
   if not status then engine.writelog("VPNBAN ERROR: Cannot fetch IP: " .. lookupip) return nil end
   local tbl = json.decode(resp[1], 1, nil)
   if not tbl then engine.writelog("VPNBAN ERROR: Cannot fetch IP: " .. lookupip) return nil end
-  if code == 200 then
-    engine.writelog("VPN LOOKUP: IP: " .. tbl.ip .. " ASN: " .. tbl.asn .. " (" .. tbl.countryName .. ") Block: " .. tbl.block)
-  elseif tbl.error then engine.writelog("LOOKUP ERROR: [Code " .. code .. "] " .. lookupip .. ": " .. tbl.error)
+  if tbl.error then engine.writelog("LOOKUP ERROR: [Code " .. code .. "] " .. lookupip .. ": " .. tbl.error)
   else engine.writelog("VPNBAN FAIL: [Code " .. code .. "] IP lookup could not be completed.") end
   return status and code and code == 200, tbl.block, tbl.ip
 end

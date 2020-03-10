@@ -2,6 +2,8 @@
 
 [Spaghettimod](https://github.com/pisto/spaghettimod), with a few additional scripts found in [benzomatic/spaghettimod-extra](https://github.com/benzomatic/spaghettimod-extra).
 
+[How to set this up](https://github.com/benzomatic/spaghettimod-setup)
+
 
 
 **spaghettimod** is a Cube 2: Sauerbraten server mod with Lua scripting. It is completely different from Hopmod (the other Lua server mod around). It is for modders who already have a good knowledge of the Sauerbraten server codebase, and just want tools to easily extend that with Lua. It is *not* for clan leaders who just want a personalized (read, custom message color or little more) server.
