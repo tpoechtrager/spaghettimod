@@ -38,20 +38,28 @@ function addspaces(n) { // force a minimum width on embeds
   return str;
 }
 
-let ipregex = /\b(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\/[0-2]\d|\/3[0-2])?\b/gm;
+let ipregex = new RegExp([
+    /\b(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\./,
+    /(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\./,
+    /(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\./,
+    /(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])/,
+    /(\/[0-2]\d|\/3[0-2])?/
+  ].map(r => r.source).join(''));
+
+let ipregexgm = new RegExp(ipregex.source, 'gm');
 
 function maskIPs(str) { // anonymize IPs but still leave room to differentiate between them
   let ipmasked = false;
-
-  str = str.replace(ipregex, (m) => {
-    m = ipregex.exec(m);
-    let mask = (m[5] !== undefined) ? m[5] : "";
-    m = m.map(item => ((item !== undefined) && item.padStart(2, 'x').padEnd(3, 'x').replace(/^.{1}/g, 'x').replace(/.$/,"x"))).splice(1, 4).join(".") + mask,
-    ipmasked = true;
+  str = str.replace(ipregexgm, n => {
+    let m = new RegExp(ipregex.source).exec(n);
+    if (m) {
+      let mask = (m[5] !== undefined) ? m[5] : "";
+      m = m.map(item => ((item !== undefined) && item.padStart(2, 'x').padEnd(3, 'x').replace(/^.{1}/g, 'x').replace(/.$/, 'x'))).splice(1, 4).join(".") + mask,
+      ipmasked = true;
+    }
     return m;
   });
-
-  return (ipmasked) ? str + "\nIPs were masked. Please join the server to retrieve IPs." : str;
+  return (ipmasked) ? str + "_ -> IPs were masked. Please join the server to retrieve IPs._" : str;
 }
 
 
