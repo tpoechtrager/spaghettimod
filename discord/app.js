@@ -51,7 +51,7 @@ let ipregexgm = new RegExp(ipregex.source, 'gm');
 function maskIPs(str) { // anonymize IPs but still leave room to differentiate between them
   let ipmasked = false;
   str = str.replace(ipregexgm, n => {
-    let m = new RegExp(ipregex.source).exec(n);
+    let m = ipregex.exec(n);
     if (m) {
       let mask = (m[5] !== undefined) ? m[5] : "";
       m = m.map(item => ((item !== undefined) && item.padStart(2, 'x').padEnd(3, 'x').replace(/^.{1}/g, 'x').replace(/.$/, 'x'))).splice(1, 4).join(".") + mask,
