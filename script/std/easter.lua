@@ -26,6 +26,11 @@ else f:close() end
 
 local enable, easteredit, easter, currentents, jumpers, invisibles = true, false, {}, {}, {}, {}
 
+-- item effects
+local extrahealth, higherjump, invisible, extrafrags, dizzy 
+local spectators, emptypos = {}, {buf = ('\0'):rep(13)}
+
+-- utils
 local function hasmmreset()
   local cfg = io.open("packages/base/" .. server.smapname .. ".cfg")
   if not cfg then return false end
@@ -42,11 +47,6 @@ local function fireball(o)
   if p then spaghetti.latergame(200, function() ents.delent(p) end) end
 end
 
--- item effects
-local extrahealth, higherjump, invisible, extrafrags, dizzy 
-local spectators, emptypos = {}, {buf = ('\0'):rep(13)}
-
--- utils
 local function sparkle(egg)
   local o = egg.o
   egg.sparkle = spaghetti.latergame(200, function()
@@ -225,19 +225,18 @@ local easterents = {
   { n = "carrot", effect = extrafrags },
   { n = "tentus/food-drink/winebottle", effect = dizzy, nocarrot = true }
 }
+   
+local maxeggs = 2        -- maximum eggs that are available at once
 
-    
-local maxeggs = 2        -- maximum eggs to be available at once
+local egginterval = 15   -- egg spawn interval in seconds
 
 local showsparks = true  -- show some pretty sparks around eggs
-
 
 --  #########################################################################################################################
 --  #########################################################################################################################
 
 
 -- add coordinates from file, line format should be 'mapname pos-x pos-y pos-z'
-
 spaghetti.addhook("entsloaded", function(info)
   if not enable then return end
   for k, o in pairs(easter) do easter[k] = nil end
@@ -262,16 +261,14 @@ function t(o)
 end
 
 local function spawnrandoments(max)
-  if not enable or not server.m_noitems or not ents.active() or not next(easter) or (max and (max > maxeggs)) or (t(currentents) > maxeggs) or easteredit then return end
+  if not enable or not server.m_noitems or not ents.active() or not next(easter) or (max and (max > maxeggs)) or (t(currentents) >= maxeggs) or easteredit then return end
   local occupied, n, num, max = {}, -1, 0, max and max or maxeggs
   local eastercount = {}
   for n, _ in pairs(easter) do table.insert(eastercount, n) end
   while (num < max) and next(eastercount) ~= nil do
     num = num + 1
     local randent = easterents[math.random(#easterents)]
-    local repeats = 0
     repeat
-      repeats = repeats + 1
       n = table.remove(eastercount, math.random(#eastercount))
     until num > #easter or not next(eastercount) or (not occupied[n] and not currentents[n])
     if occupied[n] or currentents[n] then return end
@@ -301,9 +298,7 @@ local function spawnrandoments(max)
     else currentents[n].i = ents.newent(etype, { x = x, y = y, z = z }, 0, name) end -- spawn below egg
 
     if carrot then ents.setspawn(carrot, true) end
-    
     ents.setspawn(currentents[n].i, true)
-    
     if r then 
       ents.setspawn(currentents[n].i1, true) ents.setspawn(currentents[n].i2, true)
       ents.setspawn(currentents[n].i3, true) ents.setspawn(currentents[n].i4, true)  
@@ -315,10 +310,11 @@ end
 spaghetti.addhook("connected", function(info) 
   for n, egg in pairs(currentents) do
     if egg.carrot then ents.setspawn(egg.carrot, true, true) end
+    ents.setspawn(egg.i, true, true)
     if egg.r then
       ents.setspawn(egg.i1, true, true) ents.setspawn(egg.i2, true, true)
       ents.setspawn(egg.i3, true, true) ents.setspawn(egg.i4, true, true)  
-     else ents.setspawn(egg.i, true, true) end
+    end
   end
 end)
 
@@ -326,11 +322,8 @@ local function eggpickup(ci, n, editing)
   if not ci and not editing then return end
   local egg = currentents[n]
   if not egg then return end
-  if egg.carrot then
-    ents.setspawn(egg.carrot, false)
-    ents.delent(egg.carrot)
-  end
-  ents.delent(egg.i)
+  if egg.carrot then ents.setspawn(egg.carrot, false) ents.delent(egg.carrot) end
+  ents.setspawn(egg.i, false) ents.delent(egg.i)
   if egg.r then  
     ents.setspawn(egg.i1, false) ents.delent(egg.i1) 
     ents.setspawn(egg.i2, false) ents.delent(egg.i2) 
@@ -341,7 +334,7 @@ local function eggpickup(ci, n, editing)
   if egg.signal then ents.delent(egg.signal) end
   currentents[n] = nil
   if editing then return end
-  spaghetti.latergame(7000, function()
+  spaghetti.latergame(egginterval * 1000, function()
     spawnrandoments(1)
   end)
   if ci.state.aitype ~= server.AI_NONE then return end
@@ -376,7 +369,6 @@ spaghetti.addhook(server.N_SOUND, function(info)
 end)
 
 -- effect cancellation
-
 local function clearclienteffects(ci)
   if ci.state.aitype ~= server.AI_NONE then return end
   local hadeffect = false
@@ -427,7 +419,6 @@ end)
 
 
 -- count collected eggs and persist records
-
 spaghetti.addhook("connected", function(info) info.ci.extra.eggs = 0 end)
 spaghetti.addhook("changemap", function(info) for p in iterators.clients() do p.extra.eggs = 0 end end)
 
@@ -456,7 +447,6 @@ end)
 
 -- invisibility hooks & logic, originally written by pisto
 -- taken from https://github.com/pisto/spaghettimod-assorted/blob/master/load.d/1000-honzik-server.lua
-
 disappear = function()
   if not enable then return end
   local players = map.sf(L"_.state.state == engine.CS_ALIVE and _ or nil", iterators.clients())
@@ -564,7 +554,6 @@ spaghetti.addhook(server.N_ADDBOT, function(info)
 end)
 
 -- add egg edit mode
-
 local function simulateegg(o)
   local n = 1
   for _ in pairs(currentents) do n = n + 1 end
@@ -608,7 +597,7 @@ commands.add("addegg", function(info)
   file:close()
   traverseeggs(eggfile)
   refresheggs()
-  server.sendservmsg("\f6Info\f7: " .. info.ci.name .. " successfully added egg at \f0" .. tostring(o) .. "\f7, effective at next mapchange!", info.ci)
+  server.sendservmsg("\f6Info\f7: " .. info.ci.name .. " successfully added egg at \f0" .. tostring(o) .. "\f7!", info.ci)
 end, "#addegg: Add an easter egg where you're standing. Only works in egg edit mode! -> #editeggs")
 
 commands.add("removeegg", function(info)
