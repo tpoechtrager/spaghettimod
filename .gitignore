@@ -22,3 +22,5 @@ GeoLite2-Country-Blocks-IPv4.csv
 GeoLite2-City.mmdb
 /discord/node_modules/
 /discord/package-lock.json
+*/*.orig
+*.patch
