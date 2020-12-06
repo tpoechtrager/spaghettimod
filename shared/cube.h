@@ -78,6 +78,7 @@ struct lua_array : std::array<T, len>
 #ifndef STANDALONE
   #ifdef __APPLE__
     #include "SDL2/SDL.h"
+    #define GL_GLEXT_LEGACY
     #include <OpenGL/gl.h>
     #define main SDL_main
   #else
