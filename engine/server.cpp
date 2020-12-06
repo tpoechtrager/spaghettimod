@@ -477,7 +477,7 @@ void processmasterinput()
     char *input = &masterin[masterinpos], *end = (char *)memchr(input, '\n', masterin.length() - masterinpos);
     while(end)
     {
-        *end++ = '\0';
+        *end = '\0';
 
         {
             std::string buff = input;
@@ -498,7 +498,11 @@ void processmasterinput()
             else server::processmasterinput(input, cmdlen, args);
         }
 
+
         nextinput:
+
+        end++;
+
         masterinpos = end - masterin.getbuf();
         input = end;
         end = (char *)memchr(input, '\n', masterin.length() - masterinpos);
