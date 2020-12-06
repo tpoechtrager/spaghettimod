@@ -3445,6 +3445,7 @@ namespace server
                 int reqmode = getint(p);
                 if(spaghetti::simplehook(N_MAPVOTE, sender, p, curmsg, ci, cq, cm, text, reqmode)) break;
                 filtertext(text, text, false);
+                fixmapname(text);
                 vote(text, reqmode, sender);
                 break;
             }
