@@ -8,6 +8,12 @@
 #endif
 #include <cmath>
 
+#ifdef __MINGW32__
+#ifdef __STRICT_ANSI__
+#undef __STRICT_ANSI__
+#endif
+#endif
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
