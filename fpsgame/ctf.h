@@ -11,17 +11,16 @@ struct ctfservmode : servmode
 struct ctfclientmode : clientmode
 #endif
 {
-    static const int BASERADIUS = 64;
-    static const int BASEHEIGHT = 24;
-    static const int MAXFLAGS = 20;
-    static const int FLAGRADIUS = 16;
-    static const int FLAGLIMIT = 10;
-    static const int MAXHOLDSPAWNS = 100;
-    static const int HOLDSECS = 15;
-    static const int HOLDFLAGS = 1;
-    static const int HOLDDEATHPENALTY = 5;
-    static const int RESPAWNSECS = 5;
-
+    static int BASERADIUS;
+    static int BASEHEIGHT;
+    static int MAXFLAGS;
+    static int FLAGRADIUS;
+    static int FLAGLIMIT;
+    static int MAXHOLDSPAWNS;
+    static int HOLDSECS;
+    static int HOLDFLAGS;
+    static int HOLDDEATHPENALTY;
+    static int RESPAWNSECS;
 
     struct flag
     {
