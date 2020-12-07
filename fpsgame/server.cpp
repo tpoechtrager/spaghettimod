@@ -4400,7 +4400,6 @@ void bindserver(){
             .addFunction("addbase", &captureservmode::addbase)
             .addFunction("initbase", &captureservmode::initbase)
             .addFunction("hasbases", &captureservmode::hasbases)
-            .addFunction("disttoenemy", &captureservmode::disttoenemy)
             .addFunction("insidebase", &captureservmode::insidebase)
             .addData("notgotbases", &captureservmode::notgotbases)
             .addFunction("reset", &captureservmode::reset)
