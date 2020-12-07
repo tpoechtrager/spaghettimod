@@ -2166,6 +2166,7 @@ namespace server
         loopv(votes) if(!best || votes[i].count > best->count || (votes[i].count == best->count && rnd(2))) best = &votes[i];
         if(force || (best && best->count > maxvotes/2))
         {
+            sendpackets(true);
             if(demorecord) enddemorecord();
             if(best && (best->count > (force ? 1 : maxvotes/2)))
             {
@@ -2226,6 +2227,7 @@ namespace server
             int mode = ci->modevote;
             const char *reason = "veto";
             if(spaghetti::simplehook(spaghetti::hotstring::prechangemap, map, mode, reason)) return;
+            sendpackets(true);
             if(demorecord) enddemorecord();
             if(!ci->local || hasnonlocalclients())
                 sendservmsgf("%s forced %s on map %s", colorname(ci), modename(mode), map.c_str()[0] ? map.c_str() : "[new map]");
