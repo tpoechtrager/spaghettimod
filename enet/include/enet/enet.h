@@ -220,7 +220,7 @@ enum
    ENET_HOST_CONNECTS_CLEANUP_SIZE        = 1024 * 1024,
    ENET_HOST_DEFAULT_CONNECTS_WINDOW_RATIO = 10,
 
-   ENET_PEER_DEFAULT_ROUND_TRIP_TIME      = 500,
+   ENET_PEER_DEFAULT_ROUND_TRIP_TIME      = 350,
    ENET_PEER_DEFAULT_PACKET_THROTTLE      = 32,
    ENET_PEER_PACKET_THROTTLE_SCALE        = 32,
    ENET_PEER_PACKET_THROTTLE_COUNTER      = 7, 
@@ -273,6 +273,11 @@ typedef struct _ENetConnectingPeer
    enet_uint8    channelCount;
    enet_uint8    outgoingSessionID;
 } ENetConnectingPeer;
+
+typedef enum _ENetPeerFlag
+{
+   ENET_PEER_FLAG_NEEDS_DISPATCH = (1 << 0)
+} ENetPeerFlag;
 
 /**
  * An ENet peer which data packets may be sent or received from. 
@@ -337,7 +342,9 @@ typedef struct _ENetPeer
    ENetList      outgoingReliableCommands;
    ENetList      outgoingUnreliableCommands;
    ENetList      dispatchedCommands;
-   int           needsDispatch;
+   enet_uint16   flags;
+   enet_uint8    roundTripTimeRemainder;
+   enet_uint8    roundTripTimeVarianceRemainder;
    enet_uint16   incomingUnsequencedGroup;
    enet_uint16   outgoingUnsequencedGroup;
    enet_uint32   unsequencedWindow [ENET_PEER_UNSEQUENCED_WINDOW_SIZE / 32]; 
