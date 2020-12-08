@@ -1011,7 +1011,7 @@ namespace server
         loopi(sizeof(team)/sizeof(team[0]))
         {
             addteaminfo(teamnames[i]);
-            loopvj(team[i])
+            if(!persistteams) loopvj(team[i])
             {
                 clientinfo *ci = team[i][j];
                 if(!strcmp(ci->team, teamnames[i])) continue;
@@ -2103,7 +2103,7 @@ namespace server
         loaditems();
 
         clearteaminfo();
-        if(m_teammode && !persistteams) autoteam();
+        if(m_teammode) autoteam();
 
         if(m_capture) smode = &capturemode;
         else if(m_ctf) smode = &ctfmode;
