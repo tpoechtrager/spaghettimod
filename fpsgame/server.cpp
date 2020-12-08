@@ -174,14 +174,13 @@ namespace server
     {
         uint ip;
         lua_string name;
-        int maxhealth, frags, flags, deaths, teamkills, shotdamage, damage;
+        int frags, flags, deaths, teamkills, shotdamage, damage;
         int timeplayed;
         float effectiveness;
         spaghetti::extra extra;
 
         void save(gamestate &gs)
         {
-            maxhealth = gs.maxhealth;
             frags = gs.frags;
             flags = gs.flags;
             deaths = gs.deaths;
@@ -194,8 +193,6 @@ namespace server
 
         void restore(gamestate &gs)
         {
-            if(gs.health==gs.maxhealth) gs.health = maxhealth;
-            gs.maxhealth = maxhealth;
             gs.frags = frags;
             gs.flags = flags;
             gs.deaths = deaths;
@@ -4339,7 +4336,6 @@ void bindserver(){
         .beginClass<savedscore>("savedscore")
             .addData("ip", &savedscore::ip)
             .addData("name", &savedscore::name)
-            .addData("maxhealth", &savedscore::maxhealth)
             .addData("frags", &savedscore::frags)
             .addData("flags", &savedscore::flags)
             .addData("deaths", &savedscore::deaths)
