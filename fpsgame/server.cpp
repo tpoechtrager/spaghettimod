@@ -17,6 +17,8 @@ namespace game
     const char *gameident() { return "fps"; }
 }
 
+VAR(regenbluearmour, 0, 1, 1);
+
 extern ENetAddress masteraddress;
 int MAXBOTS = 32;
 
