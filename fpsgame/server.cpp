@@ -2084,7 +2084,7 @@ namespace server
 
         gamemode = mode;
         gamemillis = 0;
-        gamelimit = (m_extratime ? 15 : 10)*60000;
+        gamelimit = 10*60000;
         interm = 0;
         nextexceeded = 0;
         copystring(smapname, map);
@@ -2270,9 +2270,54 @@ namespace server
         }
     }
 
-    void checkintermission()
+    VAR(overtime, 0, 0, 1);
+
+    bool checkovertime()
     {
-        if(gamemillis >= gamelimit && !interm)
+        if(!m_timed || !overtime) return false;
+        const char* topteam = NULL;
+        int topscore = INT_MIN;
+        bool tied = false;
+        if(m_teammode)
+        {
+            vector<teamscore> scores;
+            if(smode && smode->hidefrags()) smode->getteamscores(scores);
+            loopv(clients)
+            {
+                clientinfo *ci = clients[i];
+                if(ci->state.state==CS_SPECTATOR || !ci->team[0]) continue;
+                int score = 0;
+                if(smode && smode->hidefrags())
+                {
+                    int idx = scores.htfind(ci->team);
+                    if(idx >= 0) score = scores[idx].score;
+                }
+                else if(teaminfo *ti = teaminfos.access(ci->team)) score = ti->frags;
+                if(!topteam || score > topscore) { topteam = ci->team; topscore = score; tied = false; }
+                else if(score == topscore && strcmp(ci->team, topteam)) tied = true;
+            }
+        }
+        else
+        {
+            loopv(clients)
+            {
+                clientinfo *ci = clients[i];
+                if(ci->state.state==CS_SPECTATOR) continue;
+                int score = ci->state.frags;
+                if(score > topscore) { topscore = score; tied = false; }
+                else if(score == topscore) tied = true;
+            }
+        }
+        if(!tied) return false;
+        sendservmsg("the game is tied with overtime");
+        gamelimit = max(gamemillis, gamelimit) + 2*60000;
+        sendf(-1, 1, "ri2", N_TIMEUP, max((gamelimit - gamemillis)/1000, 1));
+        return true;
+    }
+
+    void checkintermission(bool force = false)
+    {
+        if(gamemillis >= gamelimit && !interm && (force || !checkovertime()))
         {
             if(spaghetti::simplehook(spaghetti::hotstring::preintermission)) return;
             sendf(-1, 1, "ri2", N_TIMEUP, 0);
@@ -2283,7 +2328,7 @@ namespace server
         }
     }
 
-    void startintermission() { gamelimit = min(gamelimit, gamemillis); checkintermission(); }
+    void startintermission() { gamelimit = min(gamelimit, gamemillis); checkintermission(true); }
 
     void dodamage(clientinfo *target, clientinfo *actor, int damage, int gun, vec hitpush = vec(0, 0, 0))
     {
@@ -4190,7 +4235,6 @@ void bindserver(){
         bindm(m_hold)
         bindm(m_collect)
         bindm(m_teammode)
-        bindm(m_extratime)
         .addFunction("isteam", +[](const char* a, const char* b){
             return bool(isteam(a, b));
         })
@@ -4788,7 +4832,6 @@ void bindserver(){
     addEnum(M_CTF);
     addEnum(M_PROTECT);
     addEnum(M_HOLD);
-    addEnum(M_EXTRATIME);
     addEnum(M_EDIT);
     addEnum(M_DEMO);
     addEnum(M_LOCAL);
