@@ -981,6 +981,8 @@ namespace server
         return best;
     }
 
+    VAR(persistteams, 0, 0, 1);
+
     void autoteam()
     {
         if(spaghetti::simplehook(spaghetti::hotstring::autoteam)) return;
@@ -2101,7 +2103,7 @@ namespace server
         loaditems();
 
         clearteaminfo();
-        if(m_teammode) autoteam();
+        if(m_teammode && !persistteams) autoteam();
 
         if(m_capture) smode = &capturemode;
         else if(m_ctf) smode = &ctfmode;
