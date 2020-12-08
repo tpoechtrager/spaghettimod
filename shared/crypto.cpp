@@ -292,7 +292,7 @@ template<int BI_DIGITS> struct bigint
 
     template<int Y_DIGITS> void copyshrinkdigits(const bigint<Y_DIGITS> &y, int n)
     {
-        len = min(y.len, n);
+        len = clamp(y.len, 0, n);
         memcpy(digits, y.digits, len*sizeof(digit));
         shrink();
     }
@@ -370,7 +370,7 @@ template<int BI_DIGITS> struct bigint
     
     template<int Y_DIGITS> void copydigits(int to, const bigint<Y_DIGITS> &y, int from, int n)
     {
-        int avail = min(y.len-from, n);
+        int avail = clamp(y.len-from, 0, n);
         memcpy(&digits[to], &y.digits[from], avail*sizeof(digit));
         if(avail < n) memset(&digits[to+avail], 0, (n-avail)*sizeof(digit));
     }
