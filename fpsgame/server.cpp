@@ -2082,7 +2082,7 @@ namespace server
 
         gamemode = mode;
         gamemillis = 0;
-        gamelimit = (m_overtime ? 15 : 10)*60000;
+        gamelimit = (m_extratime ? 15 : 10)*60000;
         interm = 0;
         nextexceeded = 0;
         copystring(smapname, map);
@@ -4188,7 +4188,7 @@ void bindserver(){
         bindm(m_hold)
         bindm(m_collect)
         bindm(m_teammode)
-        bindm(m_overtime)
+        bindm(m_extratime)
         .addFunction("isteam", +[](const char* a, const char* b){
             return bool(isteam(a, b));
         })
@@ -4786,7 +4786,7 @@ void bindserver(){
     addEnum(M_CTF);
     addEnum(M_PROTECT);
     addEnum(M_HOLD);
-    addEnum(M_OVERTIME);
+    addEnum(M_EXTRATIME);
     addEnum(M_EDIT);
     addEnum(M_DEMO);
     addEnum(M_LOCAL);
