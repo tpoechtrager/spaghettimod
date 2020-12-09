@@ -76,7 +76,6 @@ struct lua_array : std::array<T, len>
     #define GL_GLEXT_LEGACY
     #define __glext_h_
     #include <OpenGL/gl.h>
-    #define main SDL_main
   #else
     #include <SDL.h>
     #include <SDL_opengl.h>
