@@ -57,7 +57,82 @@ static void fixent(entity &e, int version)
     if(version <= 31 && e.type == ET_MAPMODEL) { int yaw = (int(e.attr1)%360 + 360)%360 + 7; e.attr1 = yaw - yaw%15; }
 }
 
+/*
+*
+*   Use lighter *.ents files for entity loading and crc checks.
+*
+*   (c) Copyright Thomas, 2011
+*
+*/
+
 bool loadents(const char *fname, vector<entity> &ents, uint *crc)
+{
+    string ogzname, entsname;
+    char * mapname = newstring(fname);
+    fixmapname(mapname);
+
+    formatstring(ogzname, "packages/base/%s.ogz", mapname);
+    formatstring(entsname, "packages/base/%s.ents", mapname);
+    path(ogzname);
+    path(entsname);
+
+    if(fileexists(ogzname, "rb"))
+        return loadents_ogz(fname, ents, crc);
+
+    stream *f = opengzfile(entsname, "rb");
+        if (!f) return false;
+
+        if (f->getchar() != 'M' || f->getchar() != 'A' || f->getchar() != 'P' ||
+            f->getchar() != 'E' || f->getchar() != 'N' || f->getchar() != 'T' || f->getchar() != 'S')
+        {
+            delete f;
+            return false;
+        }
+
+        *crc = f->get<uint>();
+        int elen = f->get<int>();
+
+        if (f->get<int>() != 0)
+        {
+            delete f;
+            return false;
+        }
+
+        loopi(elen)
+        {
+            entity e;
+            e.type  = f->get<uchar>();
+            e.attr1 = f->get<short>();
+            e.attr2 = f->get<short>();
+            e.attr3 = f->get<short>();
+            e.attr4 = f->get<short>();
+            e.attr5 = f->get<short>();
+            e.reserved = f->get<uchar>();
+            loopk(3) e.o[k] = f->get<float>();
+
+            ents.add(e);
+
+            if (f->getlil<int>() != 0)
+            {
+                ents.shrink(0);
+                delete f;
+                return false;
+            }
+        }
+
+        if (f->get<int>() != 0 || f->get<int>() != elen)
+        {
+            ents.shrink(0);
+            delete f;
+            return false;
+        }
+
+        delete f;
+        return true;
+}
+
+
+bool loadents_ogz(const char *fname, vector<entity> &ents, uint *crc)
 {
     string pakname, mapname, mcfgname, ogzname;
     getmapfilenames(fname, NULL, pakname, mapname, mcfgname);
