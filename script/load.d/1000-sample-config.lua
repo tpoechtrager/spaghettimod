@@ -4,11 +4,11 @@
 
 ]]--
 
-if not os.getenv("B") then return end
+if not os.getenv("SPAGHETTI") then return end
 engine.writelog("Applying the sample configuration. Port: 28785")
 
 local servertag = require"utils.servertag"
-servertag.tag = "b"
+servertag.tag = "spaghetti"
 
 local uuid = require"std.uuid"
 
@@ -16,18 +16,18 @@ local fp, L = require"utils.fp", require"utils.lambda"
 local map, I = fp.map, fp.I
 local abuse, playermsg = require"std.abuse", require"std.playermsg"
 
-cs.maxclients = 42
+cs.maxclients = 20
 cs.serverport = 28785
 
-cs.updatemaster = 0
+cs.updatemaster = 1
 spaghetti.later(10000, L'engine.requestmaster("\\n")', true)
 spaghetti.addhook("masterin", L'if _.input:match("^failreg") then engine.lastupdatemaster = 0 end', true)
 
 --make sure you delete the next two lines, or I'll have admin on your server.
-cs.serverauth = "spaghettimod"
+cs.serverauth = "spaghetti"
 local auth = require"std.auth"
-cs.adduser("benzomatic", "spaghettimod", "-cb04df9dbdf08e2f9e41d34d1ecc1ebe1a6eb05fdd96a846", "a")
-table.insert(auth.preauths, "spaghettimod")
+cs.adduser("benzomatic", "spaghetti", "+a26e607b5554fd5b316a4bdd1bfc4734587aa82480fb081f", "a")
+table.insert(auth.preauths, "spaghetti")
 
 
 spaghetti.addhook(server.N_SETMASTER, L"_.skip = _.skip or (_.mn ~= _.ci.clientnum and _.ci.privilege < server.PRIV_AUTH)")
@@ -141,6 +141,8 @@ require"std.pm"
 require"std.getip"
 require"std.specban"
 
+--[[
+
 require"std.discordrelay".new({
   relayHost = "127.0.0.1", 
   relayPort = 57575, 
@@ -151,6 +153,8 @@ require"std.discordrelay".new({
     evil = "evil-voice-channel"
   }
 })
+
+]]
 
 spaghetti.addhook("entsloaded", function()
   if server.smapname ~= "thetowers" then return end
@@ -180,7 +184,7 @@ spaghetti.addhook(server.N_SOUND, function(info)
 end)
 abuse.ratelimit({ server.N_TEXT, server.N_SAYTEAM }, 0.5, 10, L"nil, 'I don\\'t like spam.'")
 abuse.ratelimit(server.N_SWITCHNAME, 1/30, 4, L"nil, 'You\\'re a pain.'")
---abuse.ratelimit(server.N_MAPVOTE, 1/10, 3, L"nil, 'That map sucks anyway.'")
+abuse.ratelimit(server.N_MAPVOTE, 1/10, 3, L"nil, 'That map sucks anyway.'")
 abuse.ratelimit(server.N_SPECTATOR, 1/30, 5, L"_.ci.clientnum ~= _.spectator, 'Can\\'t even describe you.'") --self spec
 abuse.ratelimit(server.N_MASTERMODE, 1/30, 5, L"_.ci.privilege == server.PRIV_NONE, 'Can\\'t even describe you.'")
 abuse.ratelimit({ server.N_AUTHTRY, server.N_AUTHKICK }, 1/60, 4, L"nil, 'Are you really trying to bruteforce a 192 bits number? Kudos to you!'")
