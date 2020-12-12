@@ -1,10 +1,18 @@
 # What is this?
 
-[Spaghettimod](https://github.com/pisto/spaghettimod), with a few additional scripts found in [benzomatic/spaghettimod-extra](https://github.com/benzomatic/spaghettimod-extra).
+A fork of [spaghettimod](https://github.com/pisto/spaghettimod) by [pisto](https://github.com/pisto), updated to the [Sauerbraten 2020 Edition](http://sauerbraten.org), and featuring some additional scripts.
 
-[How to set this up](https://github.com/benzomatic/spaghettimod-setup)
+## Table of contents:
+* [About spaghettimod](#about-spaghettimod)
+* [Setup Tutorial](#setup-tutorial)
+	* [Setting up the build environment](#setting-up-the-build-environment)
+	* [Configuration and Running](#configuration-and-running)
+* [Discord Bot](#discord-bot)
+	* [Installing node modules](#installing-node-modules)
+	* [Necessary configuration](#necessary-configuration)
+	* [Running the bot](#running-the-bot)
 
-
+# About spaghettimod
 
 **spaghettimod** is a Cube 2: Sauerbraten server mod with Lua scripting. It is completely different from Hopmod (the other Lua server mod around). It is for modders who already have a good knowledge of the Sauerbraten server codebase, and just want tools to easily extend that with Lua. It is *not* for clan leaders who just want a personalized (read, custom message color or little more) server.
 
@@ -19,39 +27,14 @@ For this reason, the principles are mostly coding principles.
 
 I am available in Gamesurge as pisto. It is called **spaghettimod** because I'm italian.
 
-# Default configuration
+## Performance
 
-There are some files in *script/load.d*, which enable some sane default configuration. These modules are:
-
-1. *10-logging.lua* : improved logging with date, renames, etc
-2. *20-cleanshutdown.lua* : gracefully kick all clients on shutdown, remove the server from master quickly
-3. *100-connetcookies.lua* : harden the server against (D)DoS attacks, see section [Advanced networking](# enet-cookies))
-4. *100-extinfo-noip.lua* : do not expose the (partial) IP of players through extinfo (either send `0`, or a random IP from the same country if `GeoIPCountryWhois.csv` is available)
-5. *100-geoip.lua* : show Geoip on client connect, and provide the `#geoip [cn]`
-6. *2000-demorecord.lua* : record demos in `<servertag>.demos` (`std.servertag` is a module that returns either the port number or a user provided string to tag the server among various instances)
-7. *2000-serverexec.lua* : create a unix socket for a Lua interactive shell, connect with `socat READLINE,history=.spaghetti_history UNIX-CLIENT:./28785.serverexec`
-8. *2000-stdban.lua* : advanced ban and kicks support (IP ranges, access rules, bypass rules, listing and deletion...)
-9. *2000-ASkidban.lua* : ban proxies with [ASkidban](https://github.com/pisto/ASkidban/)
-10. *2100-mapswitch-gc.lua* : run a Lua garbage collection cycle after a map load
-11. *off/3000-shelldetach.lua* (off by default unless you have the `luaposix` package and symlink it in the `script/load.d` folder): make the server fork to background and write logs to `<servertag>.log`, and execute a full restart on `SIGUSR1` (updating to the latest revision is as easy as `git pull && make && killall -s SIGUSR1 sauer_server`).
-
-Additional assorted modules can be found in the ancillary repo [spaghettimod-assorted](https://github.com/pisto/spaghettimod-assorted).
-
-### The PISTOVPS configuration
-
-If you start the server with the enviroment variable `PISTOVPS` set (`PISTOVPS=1 ./sauer_server`), you will have a clone of the server that I run myself (`/connect pisto.horse 1024`). *1000-sample-config.lua* sports a more real life configuration, including map rotation, abuse protection, gamemode mods (quadarmours and flag switch)... Just `/connect pisto.horse 1024` to check out the latest gadgets.
-
-### The ZOMBIEVPS configuration
-
-The ZOMBIE OUTBREAK! server (`/connect pisto.horse 6666`) can be started with `ZOMBIEVPS=1 ./sauer_server`. It is a heavily modded gamemode with up to 128 bots, and showcases a variety of event hooks.
-
-# Performance
-
-Performance is deemed to be "very good". I run athe ZOMBIE OUTBREAK! server and even in crowded situations (~20 players, ~60 bots) it still takes only 10%-15% of cpu and 25-30 MB of memory, and since Lua is called for at least every N_POS message, performance in general should not be a concern.
+Performance is deemed to be "very good". I run the ZOMBIE OUTBREAK! server and even in crowded situations (~20 players, ~60 bots) it still takes only 10%-15% of cpu and 25-30 MB of memory, and since Lua is called for at least every N_POS message, performance in general should not be a concern.
 
 In my experience, Lua generates a lot of memory fragmentation together with the glibc implementation of `malloc()`, which means that memory may be deallocated but never returned to the system, and the server process will result to use much more memory than what is reported by `collectgarbage"count"`. This is particularly noticeable when the `100-extinfo-noip.lua` script finds the GeoIP cvs databases and generates a fake geolocalized ip: a lot of tables are allocated, then freed, but the server still takes 60 MB. I solved the problem by using a low fragmentation implementation of `malloc()`, [jemalloc](http://www.canonware.com/jemalloc/): the memory usage at boot is now ~13 MB.
 
-# Compilation
+## Compilation
+[Jump to the setup tutorial](#setup-tutorial)
 
 Compilation has been tested with luajit, lua 5.2, lua 5.1, on Mac OS X, Windows and Linux. The default scripts are written with a Unix environment in mind, so most probably they won't work under Windows. The only other dependency is libz.
 
@@ -94,7 +77,7 @@ The C++ code takes care to call all Lua code with `xpcall` and a stack dumper, s
 
 If you are using a C debugger and spaghettimod crashes or halts while executing Lua code, you get a rather useless C stack trace of the Lua VM. If you are using gdb and Lua 5.2, you may use these [gdb scripts](https://github.com/pisto/lua-gdb-helper): just type `luatrace spaghetti::L`, and you hopefully will get a Lua stack trace (for Lua 5.1 or luajit, you may need to edit the script and use `lua_pcall` instead of `lua_pcallk`).
 
-# Advanced networking
+## Advanced networking
 
 The in-tree ENet source comes with two additional features, besides the aforementioned debugging switch: multihoming and a connection flood protection, akin to [TCP syn cookies](http://en.wikipedia.org/wiki/SYN_cookies). Multihoming is hardcoded and cannot be turned off (without dirty hacks), while the connection flood protection needs to be explicitly activated. This is done in the default configuration script *100-connetcookies.lua*.
 
@@ -129,7 +112,7 @@ Cookies can be activated with a call to `int enet_host_connect_cookies(ENetHost 
 
 Memory usage roughly follows this formula (size\_of\_cookie = 60): attack\_pps * (`connectingPeerTimeout` / 1000) * (100 / `ENET_HOST_DEFAULT_CONNECTS_WINDOW_RATIO`) * size\_of\_cookie. With the default parameters, a 10k pps attack can be stopped without problems with 12 MB of memory, and in informal tests it has been found that this scales well at least up to the range of 150k pps (you may need to enlarge the socket receive and send buffers with the normal ENet API).
 
-# Information for Lua modders
+## Information for Lua modders
 
 The Lua API tries to be as much as similar to the C++ code. Generally you can write basically the same stuff in Lua and C++ (replacing `->` with `.` maybe). This also means that there is no handholding: very little is being checked for sanity (like in C++), your lua script *can* crash the server, and don't even think to run Lua script sent by the client, exploits are possible.
 
@@ -194,4 +177,138 @@ The default boostrap code adds *script/* to the `LUA_PATH`, to ease `require`.
 *utils* contain some functional programming utilities, `ip` and `ipset` object that are already documented in [kidban](https://github.com/pisto/kidban/tree/master/maintaining-docs# modules), and other generic helpers.
 
 *std* contains the standard modules. I am too lazy to write a documentation for these before someone actually shows interest in using my code. Feel free to contact me if you want to write your own modules.
+
+# Setup Tutorial
+As stated above, this server is primarily built with a linux environment in mind. You should therefore compile and run it on either a linux VPS or a virtual machine.
+
+
+## Setting up the build environment
+Install the common build tools, some libraries and LUA 5.2 (might have to be run as root):
+
+``` 
+apt install zip unzip pkg-config git build-essential zlib1g-dev lua5.2 liblua5.2 liblua5.2-dev lua-posix
+```     
+
+You should also get luarocks and install some needed packages (also requires sudo):
+```
+wget https://luarocks.github.io/luarocks/releases/luarocks-3.3.1.tar.gz && tar xzf luarocks-3.3.1.tar.gz; rm -fv luarocks-3.3.1.tar.gz; mv luarocks-3.3.1 luarocks
+cd luarocks
+./configure --lua-version=5.2
+sudo make install
+sudo luarocks install struct 
+sudo luarocks install uuid 
+sudo luarocks install luasocket 
+sudo luarocks install dkjson
+sudo luarocks install mmdblua
+cd ..
+```
+Finally, you can get spaghettimod..
+
+`git clone https://github.com/pisto/spaghettimod.git` (Collect Edition, the original by pisto)
+
+or
+
+`git clone https://github.com/benzomatic/spaghettimod.git` (2020 Edition + my mods, discord bot)
+.. and run 
+```
+make
+```
+from the spaghettimod root directory.
+
+## Configuration and Running
+
+**The default configuration**
+
+If you start the server with the enviroment variable `SPAGHETTI` set (`SPAGHETTI=1 ./sauer_server`), you will spawn a server using the default configuration defined in *1000-sample-config.lua*, with a default map rotation, abuse protection, and some optional gamemods (quadarmours and flag switch).
+
+Starting the server without an environmant variable will create a vanilla-like Sauerbraten server.
+
+**The ZOMBIEVPS configuration**
+
+The ZOMBIE OUTBREAK! server can be started with `ZOMBIEVPS=1 ./sauer_server`. It is a heavily modded gamemode with up to 128 bots, and showcases a variety of event hooks.
+
+**Autoloaded modules**
+
+As described above, scripts in *script/load.d* will automatically execute once on server launch. They introduce some sane default configuration. 
+These modules are:
+
+1. *10-logging.lua* : improved logging with date, renames, etc
+2. *20-cleanshutdown.lua* : gracefully kick all clients on shutdown, remove the server from master quickly
+3. *100-connetcookies.lua* : harden the server against (D)DoS attacks, see section [Advanced networking](# enet-cookies))
+4. *100-extinfo-noip.lua* : do not expose the (partial) IP of players through extinfo (either send `0`, or a random IP from the same country if `GeoIPCountryWhois.csv` is available)
+5. *100-geoip.lua* : show Geoip on client connect, and provide the `#geoip [cn]`
+6. *2000-demorecord.lua* : record demos in `<servertag>.demos` (`std.servertag` is a module that returns either the port number or a user provided string to tag the server among various instances)
+7. *2000-serverexec.lua* : create a unix socket for a Lua interactive shell, connect with `socat READLINE,history=.spaghetti_history UNIX-CLIENT:./28785.serverexec`
+8. *2000-stdban.lua* : advanced ban and kicks support (IP ranges, access rules, bypass rules, listing and deletion...)
+9. *2000-ASkidban.lua* : ban proxies with [ASkidban](https://github.com/pisto/ASkidban/)
+10. *2100-mapswitch-gc.lua* : run a Lua garbage collection cycle after a map load
+11. *off/3000-shelldetach.lua* (off by default unless you have the `luaposix` package and symlink it in the `script/load.d` folder): make the server fork to background and write logs to `<servertag>.log`, and execute a full restart on `SIGUSR1` (updating to the latest revision is as easy as `git pull && make && killall -s SIGUSR1 sauer_server`).
+
+Additional assorted modules can be found in pisto's repo [spaghettimod-assorted](https://github.com/pisto/spaghettimod-assorted).
+
+# Discord Bot
+This repository also contains a discord bot written in JavaScript. It requires NodeJS (only tested until node version 13) and, depending on your preferences, also a process manager like [pm2](https://pm2.keymetrics.io) to run it in the background.
+You also need a discord bot that is invited to your server, and its API token, both of which can be created  [here](https://discordapp.com/developers/applications/).
+
+**Required bot permissions:**  Additionally to the standard Send/Read Messages, make sure to have Manage Messages and Read Message History enabled. Usually granted automatically (yet important) are permissions to send embeds and attach files (for thumbnails), and the ability to issue @here mentions if alerts are enabled. If auto-voice is used, it also needs Move Members permissions in the given voice channels.
+
+### Installing node modules
+```
+curl -sL https://deb.nodesource.com/setup_13.x | sudo -E bash -
+sudo apt-get install -y nodejs npm
+```
+Then
+- cd into /spaghettimod/discord/
+- run `npm install` to install all dependencies 
+
+### Necessary configuration
+#### 1) NodeJS: Open discord/config.json and configure the following
+
+* `discordToken` is your discord API bot token
+* `commandPrefix` is the bot command prefix
+* `alerts` will activate #cheater alerts
+* `alertChannelID` is an optional dedicated channelID for #cheater alerts
+* `useEmbeds` to display the server broadcast in embeds; if disabled, will use classic text messages in the main channel
+* `enableThumbnails` will show a fancy map preview on status messages
+* `enableScoreboard` will show a scoreboard with every player's stats appended to a status message
+* `alwaysScoreboard` will show a scoreboard on every status message if there is no seperate scoreboard channel
+* `relayHost`  should stay 127.0.0.1
+* `relayPort` can be any free port, but the port in the LUA config must be the same
+
+#### 2) LUA: Open the main config of your server (1000-sample-config.lua in my case) and add (or uncomment) the following:
+```
+require"std.discordrelay".new({
+  relayHost = "127.0.0.1", 
+  relayPort = 57575, 
+  discordChannelID = "my-discord-channel-id",
+  scoreboardChannelID = "my-scoreboard-channel-id",
+  voice = {
+    good = "good-channel-ID",
+    evil = "evil-channel-ID"
+  }
+})
+```
+
+* where `relayHost`  and `relayPort` **must** match what is configured in NodeJS and
+* `discordChannelID` is the channel ID that this server will send messages to, and commands will be read from
+* `scoreboardChannelID` is an optional channel for a dedicated scoreboard that will update by the minute
+* `voice` is an optional table that maps team names to voice channels in discord. People that link themselves via #voice will be auto-synchronised with the respective team channel
+
+#### Voice
+
+If voice channels were linked, a new command `#voice` will be added. Users can:
+* join a voice channel and type `#voice`: The bot will link the client if it finds a similar name in the voice channels
+* type `#voice pw`: The user will be sent a code to pm to the discord bot; the user will log in after that
+* type `#voice <code>`: The user provides a code that the bot had sent to them earlier, and they will log in as well.
+
+### Running the bot
+
+#### cd into `discord` and start the discord bot like this or through a process manager:
+
+```
+cd discord
+node app
+```
+Please make sure to start the discord bot before starting spaghettimod. 
+The discord bot is designed to handle multiple spaghettimod restarts.
 
