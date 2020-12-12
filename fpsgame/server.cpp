@@ -3898,6 +3898,9 @@ namespace server
             case N_PASTE:
             case N_ROTATE:
             case N_DELCUBE:
+            case N_EDITT:
+            case N_REPLACE:
+            case N_EDITVSLOT:
             {
                 selinfo sel;
                 sel.o.x = getint(p); sel.o.y = getint(p); sel.o.z = getint(p);
@@ -3905,19 +3908,34 @@ namespace server
                 sel.grid = getint(p); sel.orient = getint(p);
                 sel.cx = getint(p); sel.cxs = getint(p); sel.cy = getint(p), sel.cys = getint(p);
                 sel.corner = getint(p);
-                int dir, mode, tex, newtex, mat, filter, allfaces, insel;
+                int delta, dir, mode, tex, newtex, mat, filter, allfaces, insel;
                 bool skip = false;
                 switch(type)
                 {
                     case N_EDITF: dir = getint(p); mode = getint(p); skip = spaghetti::simplehook(N_EDITF, sender, p, curmsg, ci, cq, cm, sel, dir, mode); break;
-                    case N_EDITT: tex = getint(p); allfaces = getint(p); skip = spaghetti::simplehook(N_EDITT, sender, p, curmsg, ci, cq, cm, sel, tex, allfaces); break;
                     case N_EDITM: mat = getint(p); filter = getint(p); skip = spaghetti::simplehook(N_EDITM, sender, p, curmsg, ci, cq, cm, sel, mat, filter); break;
                     case N_FLIP: skip = spaghetti::simplehook(N_FLIP, sender, p, curmsg, ci, cq, cm, sel); break;
                     case N_COPY: skip = spaghetti::simplehook(N_COPY, sender, p, curmsg, ci, cq, cm, sel); break;
                     case N_PASTE: skip = spaghetti::simplehook(N_PASTE, sender, p, curmsg, ci, cq, cm, sel); break;
                     case N_ROTATE: dir = getint(p); skip = spaghetti::simplehook(N_ROTATE, sender, p, curmsg, ci, cq, cm, sel, dir); break;
-                    case N_REPLACE: tex = getint(p); newtex = getint(p); insel = getint(p); skip = spaghetti::simplehook(N_REPLACE, sender, p, curmsg, ci, cq, cm, sel, tex, newtex, insel); break;
                     case N_DELCUBE: skip = spaghetti::simplehook(N_DELCUBE, sender, p, curmsg, ci, cq, cm, sel); break;
+                    case N_EDITT:
+                    case N_REPLACE:
+                    case N_EDITVSLOT:
+                    {
+                        int size = server::msgsizelookup(type);
+                        if(size<=0) { disconnect_client(sender, DISC_MSGERR); return; }
+                        switch(type) {
+                            case N_EDITT: tex = getint(p); allfaces = getint(p); skip = spaghetti::simplehook(N_EDITT, sender, p, curmsg, ci, cq, cm, sel, tex, allfaces); break;
+                            case N_REPLACE: tex = getint(p); newtex = getint(p); insel = getint(p); skip = spaghetti::simplehook(N_REPLACE, sender, p, curmsg, ci, cq, cm, sel, tex, newtex, insel); break;
+                            case N_EDITVSLOT: delta = getint(p); allfaces = getint(p); skip = spaghetti::simplehook(N_EDITVSLOT, sender, p, curmsg, ci, cq, cm, sel, delta, allfaces); break;
+                        }
+                        if(p.remaining() < 2) { disconnect_client(sender, DISC_MSGERR); return; }
+                        int extra = lilswap(*(const ushort *)p.pad(2));
+                        if(p.remaining() < extra) { disconnect_client(sender, DISC_MSGERR); return; }
+                        p.pad(extra);
+                        break;
+                    }
                 }
                 if(skip) break;
                 if(type == N_COPY)
@@ -3952,27 +3970,18 @@ namespace server
                 ci->clipboard = q.finalize();
                 ci->clipboard->referenceCount++;
                 break;
-            } 
-
-            case N_EDITT:
-            case N_REPLACE:
-            case N_EDITVSLOT:
-            {
-                int size = server::msgsizelookup(type);
-                if(size<=0) { disconnect_client(sender, DISC_MSGERR); return; }
-                loopi(size-1) getint(p);
-                if(p.remaining() < 2) { disconnect_client(sender, DISC_MSGERR); return; }
-                int extra = lilswap(*(const ushort *)p.pad(2));
-                if(p.remaining() < extra) { disconnect_client(sender, DISC_MSGERR); return; }
-                p.pad(extra);
-                if(ci && ci->state.state!=CS_SPECTATOR) QUEUE_MSG;
-                break;
             }
 
             case N_UNDO:
             case N_REDO:
             {
                 int unpacklen = getint(p), packlen = getint(p);
+                bool skip = false;
+                switch(type) {
+                    case N_UNDO: skip = spaghetti::simplehook(N_UNDO, sender, p, curmsg, ci, cq, cm, unpacklen, packlen); break;
+                    case N_REDO: skip = spaghetti::simplehook(N_REDO, sender, p, curmsg, ci, cq, cm, unpacklen, packlen); break;
+                }
+                if(skip) break;
                 if(!ci || ci->state.state==CS_SPECTATOR || packlen <= 0 || packlen > (1<<16) || unpacklen <= 0)
                 {
                     if(packlen > 0) p.subbuf(packlen);
@@ -4987,6 +4996,9 @@ void bindserver(){
     addEnum(N_SENDMAP);
     addEnum(N_CLIPBOARD);
     addEnum(N_EDITVAR);
+    addEnum(N_EDITVSLOT);
+    addEnum(N_UNDO);
+    addEnum(N_REDO);
     addEnum(N_MASTERMODE);
     addEnum(N_KICK);
     addEnum(N_CLEARBANS);
