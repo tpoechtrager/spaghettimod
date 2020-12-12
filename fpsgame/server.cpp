@@ -4235,6 +4235,9 @@ void bindserver(){
         .addFunction("m_checkall", +[](int mode, int flag){
             return bool(m_checkall(mode, flag));
         })
+        .addFunction("m_checkonly", +[](int mode, int flag, int exclude){
+            return bool(m_checkonly(mode, flag, exclude));
+        })
 #define bindm(m) .addProperty(#m, +[](){ return bool(m);})
         bindm(m_noitems)
         bindm(m_noammo)
@@ -4242,8 +4245,10 @@ void bindserver(){
         bindm(m_tactics)
         bindm(m_efficiency)
         bindm(m_capture)
+        bindm(m_capture_only)
         bindm(m_regencapture)
         bindm(m_ctf)
+        bindm(m_ctf_only)
         bindm(m_protect)
         bindm(m_hold)
         bindm(m_collect)
