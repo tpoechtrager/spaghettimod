@@ -23,6 +23,8 @@ cs.updatemaster = 1
 spaghetti.later(10000, L'engine.requestmaster("\\n")', true)
 spaghetti.addhook("masterin", L'if _.input:match("^failreg") then engine.lastupdatemaster = 0 end', true)
 
+cs.autorecorddemo = 1
+
 --make sure you delete the next two lines, or I'll have admin on your server.
 cs.serverauth = "spaghetti"
 local auth = require"std.auth"
