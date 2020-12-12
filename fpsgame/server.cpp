@@ -2313,9 +2313,11 @@ namespace server
             }
         }
         if(!tied) return false;
+        if(spaghetti::simplehook(spaghetti::hotstring::preovertime)) return true;
         sendservmsg("the game is tied with overtime");
         gamelimit = max(gamemillis, gamelimit) + 2*60000;
         sendf(-1, 1, "ri2", N_TIMEUP, max((gamelimit - gamemillis)/1000, 1));
+        spaghetti::simpleconstevent(spaghetti::hotstring::overtime);
         return true;
     }
 
@@ -4730,6 +4732,7 @@ void bindserver(){
         .addFunction("checkvotes", checkvotes)
         .addFunction("forcemap", forcemap)
         .addFunction("vote", vote)
+        .addFunction("checkovertime", checkovertime)
         .addFunction("checkintermission", checkintermission)
         .addFunction("startintermission", startintermission)
         .addFunction("dodamage", dodamage)

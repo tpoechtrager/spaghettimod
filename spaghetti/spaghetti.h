@@ -169,7 +169,7 @@ struct hotstring{
         presuicide, suicide,
         explode, shot,
         returnflag, dropflag, scoreflag, takeflag, resetflag, invisflag,
-        preintermission, intermission,
+        preovertime, overtime, preintermission, intermission,
         savegamestate, restoregamestate,
         autoteam, joinspecstate, checkpausegame, checkmastermode,
         loaditems,
