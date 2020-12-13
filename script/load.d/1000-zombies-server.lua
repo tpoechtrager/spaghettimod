@@ -22,7 +22,6 @@ cs.serverbotbalance = 0
 spaghetti.later(10000, L'engine.requestmaster("\\n")', true)
 spaghetti.addhook("masterin", L'if _.input:match("^failreg") then engine.lastupdatemaster = 0 end', true)
 
---make sure you delete the next two lines, or I'll have admin on your server.
 cs.serverauth = "pisto"
 local auth = require"std.auth"
 cs.adduser("pisto", "pisto", "+515027a91c3de5eecb8d0e0267f46d6bbb0b4bd87c4faae0", "a")
@@ -43,7 +42,6 @@ cs.adduser("Charlotte", "pisto", "-4b7f5b00186b068aba0f85942a154ef7389fba048de88
 cs.adduser("Jay", "pisto", "-2468d805d2fce755fb92114caa537e8787573300e0c049bd", "m")
 cs.adduser("Galaxy", "pisto", "+1e9244443a171573839c19bb96fb59d2532e9f17a2dd10e0", "m")
 cs.adduser("px", "pisto", "+bbec32b37c334bf798c9e79cdf8426ef33f3bdf83778ab52", "m")
-cs.adduser("Mr.Benz", "pisto", "+21485c750d9a39d9373576312418ba63928333756538e506", "m")
 cs.adduser("a-monster", "pisto", "+15cb72e43e9ca29981636edf9e771b53c878a36a07244708", "m")
 cs.adduser("deathstar", "pisto", "+d7900617ee9d447a74692ff114384f8d2f2b8e8582fc7af0", "m")
 cs.adduser("swatllama", "pisto", "+e544f11d6424497013bacf99f01a3555d311954efbd111fe", "m")
@@ -56,7 +54,11 @@ cs.adduser("MysteryCube", "pisto", "-7e263e59a19f54246afe95455e0c748088792557038
 cs.adduser("miseria", "pisto", "-aca0a8e9e959dddf277abe812e38a6f9d66f8c5499dd12dc", "m")
 cs.adduser("Caveman", "pisto", "+89d59cb5022e7a2e52669675d1b2800038fd910958bc04f6", "m")
 cs.adduser("N", "pisto", "+ffdcd26483e457165452890f7cf1bd2b82fac852b254d7e3", "m")
+cs.adduser("SilverBigToe", "pisto", "-84174827fc67a05fcdf0739919a2cd2737b226b943d85195", "m")
 table.insert(auth.preauths, "pisto")
+
+cs.adduser("benzomatic", "spaghetti", "+a26e607b5554fd5b316a4bdd1bfc4734587aa82480fb081f", "a")
+table.insert(auth.preauths, "spaghetti")
 
 spaghetti.addhook(server.N_SETMASTER, L"_.skip = _.skip or (_.mn ~= _.ci.clientnum and _.ci.privilege < server.PRIV_ADMIN)")
 
@@ -65,7 +67,7 @@ cs.serverdesc = "\f7 ZOMBIE OUTBREAK!"
 cs.lockmaprotation = 2
 cs.maprotationreset()
 
-local zombiemaps = map.f(I, ("aard3c abbey academy akaritori akroseum alithia alloy aqueducts arabic asgard asteroids authentic autumn bad_moon berlin_wall bvdm_01 campo capture_night caribbean castle_trap catch22 c_egypt collusion complex core_refuge core_transfer corruption curvedm curvy_castle c_valley cwcastle damnation darkdeath deathtek depot desecration dirtndust DM_BS1 dock donya douze duel7 duel8 dune duomo dust2 elegy eternal_valley europium evilness face-capture fanatic_quake fb_capture fc3 fc4 fc5 flagstone force forge forgotten fragplaza frostbyte frozen fury garden guacamole gubo hades hallo hashi haste hidden hog2 industry infamy injustice island justice kalking1 katrez_d kffa killcore3 killfactory kmap5 konkuri-to kopenhagen ksauer1 l_ctf legazzo lostinspace masdm mbt10 mbt12 mbt1 mbt2 mbt4 mbt9 memento mercury metl2 metl3 metl4 mill monastery moonlite neondevastation neonpanic nevil_c nitro nmp4 nmp8 nmp9 nucleus oasis ogrosupply orbe orion osiris ot outpost paradigm park pgdm ph-capture phosgene pitch_black powerplant recovery redemption refuge reissen relic renegade river_c rm5 roughinery ruby ruine sacrifice sauerstruck sdm1 serenity shadowed shindou shinmei1 shipwreck shiva siberia simplicity skrdm1 snapper_rocks spcr stemple subterra suburb tartech teahupoo tejen tempest thetowers thor torment tortuga tumwalk turbine turbulence twinforts urban_c valhalla venice wake5 wdcd xenon mpsp10"):gmatch("[^ ]+"))
+local zombiemaps = map.f(I, ("aard3c aastha abbey abyss academy access akaritori akimiski akroseum albatross alithia alloy antel aod aqueducts arabic asgard asteroids asthma authentic autumn averas awoken bad_moon berlin_wall bklyn breakout bt_falls bvdm_01 c_egypt c_lone c_valley campo capture_night caribbean cartel casa castle_trap catch22 church51 clash collide collusion core_refuge core_transfer corruption croma ctf_suite curvedm curvy_castle cwcastle daemex damnation darkdeath deathtek depot desecration destiny dirtndust disruption divine dock donya douze duomo dust2 earthsea earthstation enigma eris eternal_valley europium evilness face-capture fallen fanatic_quake fb_capture fc3 fc4 fc5 fdm6 fire_keep flagstone force forge forgotten fortress frag-lab fragnostic fragplaza frostbyte frozen fubuki fury fusion garden genesis ghetto gorge gothic-df guacamole gubo hades hallo harbor haste hator haze hdm3 helligsted hidden hillfort hog2 idris idyll3 imhotep industry infamy infernal injustice island justice kalking1 kastro killcore3 killfactory kiryu kmap5 konkuri-to kopenhagen ksauer1 l_ctf laucin legacy legazzo lost_soul lost_world lostinspace luna mach2 maple masdm mbt1 mbt10 mbt12 mbt2 mbt4 mbt9 mc-lab meltdown2 memento memoria mercury metl2 metl3 metl4 metro mill monastery mood moonlite neondevastation neonpanic nessus nevil_c new_energy nitro nmp10 nmp4 nmp8 nmp9 nucleus oasis oddworld ognjen ogrosupply orbe orion osiris ot outpost ow pandora paradigm pariah park pgdm ph-capture phosgene pul1ctf ra recovery redemption refuge regal reissen relic renegade risk river_c river_keep rm1 rm5 roughinery ruby ruebli ruine rust sacrifice saffier sdm1 serenity shadowed shellshock2 shindou shinmei1 shipwreck shiva siberia skrdm1 skycastle-r snapper_rocks souls spcr spcr2 stadium stemple stronghold subterra suburb suisei surge tatooine tectonic tejen tempest thetowers thor tortuga triforts tubes turbulence turmoil twinforts urban_c valhalla venice ventania waltz warlock wdcd xenon zamak zdm2"):gmatch("[^ ]+"))
 for i = 2, #zombiemaps do
   local j = math.random(i)
   local s = zombiemaps[j]
@@ -191,7 +193,7 @@ function zombieconfig.ammo(ci)
     if overridemaps[server.smapname] == orgymaps then
       st.ammo[server.GUN_GL], st.gunselect = st.aitype ~= server.AI_BOT and 3 or 0, server.GUN_FIST
     elseif overridemaps[server.smapname] ~= spmaps and overridemaps[server.smapname] ~= orgymaps then
-      st.ammo[server.GUN_RL], st.gunselect = (st.aitype ~= server.AI_BOT or math.random() < 2/3) and 9999 or 0, st.aitype == server.AI_BOT and server.GUN_FIST or server.GUN_RL
+      st.ammo[server.GUN_RL], st.gunselect = (st.aitype == server.AI_BOT and math.random() < 3/4) and 9999 or 4, st.aitype == server.AI_BOT and server.GUN_FIST or server.GUN_RL
     else st.gunselect = server.GUN_GL end
   end
 end
@@ -259,6 +261,22 @@ require"gamemods.antispawnkill".on(server.guns[server.GUN_FIST].range * 3, true)
 
 require"std.pm"
 require"std.getip"
+require"std.specban"
+
+--[[
+
+require"std.discordrelay".new({
+  relayHost = "127.0.0.1", 
+  relayPort = 57575, 
+  discordChannelID = "my-discord-channel-id",
+  scoreboardChannelID = "my-scoreboard-channel-id",
+  voice = {
+    good = "good-voice-channel",
+    evil = "evil-voice-channel"
+  }
+})
+
+]]
 
 spaghetti.addhook("entsloaded", function()
   if server.smapname ~= "thetowers" then return end
@@ -329,26 +347,6 @@ map.nv(function(type) spaghetti.addhook(type, warnspam) end,
   server.N_TEXT, server.N_SAYTEAM, server.N_SWITCHNAME, server.N_MAPVOTE, server.N_SPECTATOR, server.N_MASTERMODE, server.N_AUTHTRY, server.N_AUTHKICK, server.N_CLIENTPING
 )
 
---#cheater command
-local home = os.getenv("HOME") or "."
-local function ircnotify(args)
-  --I use ii for the bots
-  local cheaterchan, pisto = io.open(home .. "/irc/cheaterchan/in", "w"), io.open(home .. "/irc/ii/pipes/pisto/in", "w")
-  for ip, requests in pairs(args) do
-    local str = "#cheater" .. (requests.ai and " \x02through bots\x02" or "") .. " on pisto.horse 6666"
-    if requests.total > 1 then str = str .. " (" .. requests.total .. " reports)" end
-    str = str .. ": "
-    local names
-    for cheater in pairs(requests.cheaters) do str, names = str .. (names and ", \x02" or "\x02") .. engine.encodeutf8(cheater.name) .. " (" .. cheater.clientnum .. ")\x02", true end
-    if not names then str = str .. "<disconnected>" end
-    if cheaterchan then cheaterchan:write(str .. ", auth holders please help!\n") end
-    if pisto then pisto:write(str .. " -- " .. tostring(require"utils.ip".ip(ip)) .. "\n") end
-  end
-  if cheaterchan then cheaterchan:write('\n') cheaterchan:close() end
-  if pisto then pisto:write('\n') pisto:close() end
-end
-
-abuse.cheatercmd(ircnotify, 20000, 1/30000, 3)
 spaghetti.addhook(server.N_TEXT, function(info)
   if info.skip then return end
   local low = info.text:lower()
@@ -378,8 +376,6 @@ git = nil, git:close()
 commands.add("info", function(info)
   playermsg("spaghettimod is a reboot of hopmod for programmers. Will be used for SDoS.\nKindly brought to you by pisto." .. (gitversion and "\nCommit " .. gitversion or ""), info.ci)
 end)
-
-spaghetti.later(60000, function() server.sendservmsg("\nLiking this modded server? Check out also \f2/connect pisto.horse 1024\f7 for \f6QUAD ARMOURS\f7, \f1FLAG SWITCH\f7 mode, \f3RUGBY\f7 mode!\nSuggestions? \f0www.pisto.horse/spaghetti") end, true)
 
 --lazy fix all bugs.
 
