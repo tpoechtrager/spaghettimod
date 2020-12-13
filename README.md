@@ -186,7 +186,7 @@ As stated above, this server is primarily built with a linux environment in mind
 Install the common build tools, some libraries and LUA 5.2 (might have to be run as root):
 
 ``` 
-apt install zip unzip pkg-config git build-essential zlib1g-dev lua5.2 liblua5.2 liblua5.2-dev lua-posix
+apt install zip unzip rlwrap pkg-config git build-essential zlib1g-dev lua5.2 liblua5.2 liblua5.2-dev lua-posix
 ```     
 
 You should also get luarocks and install some needed packages (also requires sudo):
