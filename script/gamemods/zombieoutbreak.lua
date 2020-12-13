@@ -249,7 +249,7 @@ function module.on(config, persist)
       end
     end
     local st = info.target.state
-    if config.matearmour and st.armourtype == server.A_YELLOW and st.armour == 9999 then
+    if config.matearmour and st.armourtype == server.A_YELLOW and st.armour == 200 then
       info.skip = true
       st.health = st.health - info.damage / config.matearmour
       return
@@ -364,9 +364,9 @@ function module.on(config, persist)
   local linkoffset = vec3(0, 0, 6)
   hooks.npos = spaghetti.addhook("positionupdate", function(info)
     local st, mate, close, matelink = info.cp.state, info.cp.extra.mate, closemate(info.cp), info.cp.extra.matelink
-    if mate and not not close ~= (st.armourtype == server.A_YELLOW and st.armour == 9999) then
+    if mate and not not close ~= (st.armourtype == server.A_YELLOW and st.armour == 200) then
       local mst = mate.state
-      st.armourtype, st.armour, mst.armourtype, mst.armour = close and server.A_YELLOW or server.A_BLUE, close and 9999 or 0, close and server.A_YELLOW or server.A_BLUE, close and 9999 or 0
+      st.armourtype, st.armour, mst.armourtype, mst.armour = close and server.A_YELLOW or server.A_BLUE, close and 200 or 0, close and server.A_YELLOW or server.A_BLUE, close and 200 or 0
       server.sendresume(info.cp)
       server.sendresume(mate)
       if not close then
