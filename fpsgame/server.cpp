@@ -4002,6 +4002,7 @@ namespace server
 
             case N_SERVCMD:
                 getstring(text, p);
+                if(!strncmp(text, "__", 2)) break;
                 spaghetti::simpleevent(N_SERVCMD, sender, p, curmsg, ci, cq, cm, text);
                 break;
 
